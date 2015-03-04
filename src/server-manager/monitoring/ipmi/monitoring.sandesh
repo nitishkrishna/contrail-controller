@@ -34,8 +34,8 @@ struct ServerMonitoringInfo {
     6: optional IpmiChassis_status_info chassis_state
     7: optional list<Disk> disk_usage_stats (tags=".disk_name")
     8: optional list<Disk> disk_usage_state
-    9: double cpu_usage (tags="")
-    10: optional double mem_usage (tags="")
+    9: double cpu_usage
+    10: optional double mem_usage
 }
 
 uve sandesh ServerMonitoringInfoTrace {

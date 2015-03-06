@@ -59,6 +59,10 @@ struct ServerInventoryInfo {
         16: optional memory_info mem_state
         17: optional cpu_info cpu_info_state
         18: optional ethernet_controller eth_controller_state
+        19: optional u64 tx_bytes
+        20: optional u64 tx_packets
+        21: optional u64 rx_bytes
+        22: optional u64 rx_packets
 }
 
 uve sandesh ServerInventoryInfoUve {

@@ -3,6 +3,10 @@ struct interface_info {
         2: optional string      macaddress
         3: optional string      ip_addr
         4: optional string      netmask
+        5: optional u64 tx_bytes
+        6: optional u64 tx_packets
+        7: optional u64 rx_bytes
+        8: optional u64 rx_packets
 }
 
 struct fru_info {
@@ -21,22 +25,22 @@ struct fru_info {
 
 struct memory_info {
         1: string mem_type
-        2: string mem_speed
+        2: u64 mem_speed_MHz
         3: u32 num_of_dimms
-        4: string dimm_size # string coz unit GB MB is tagged
-        5: string swap_size
+        4: u64 dimm_size_mb
+        5: double swap_size_gb
 }
 
 struct cpu_info {
         1: string model
         2: u32 core_count
-        3: string clock_speed
+        3: double clock_speed_MHz
         4: u32 num_of_threads
 }
 
 struct ethernet_controller {
-        1: string speed
-        2: string num_of_ports
+        1: u64 speed_Mb_per_sec
+        2: u64 num_of_ports
         3: string model
 }
 
@@ -59,10 +63,6 @@ struct ServerInventoryInfo {
         16: optional memory_info mem_state
         17: optional cpu_info cpu_info_state
         18: optional ethernet_controller eth_controller_state
-        19: optional u64 tx_bytes
-        20: optional u64 tx_packets
-        21: optional u64 rx_bytes
-        22: optional u64 rx_packets
 }
 
 uve sandesh ServerInventoryInfoUve {

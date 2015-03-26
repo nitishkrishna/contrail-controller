@@ -79,6 +79,9 @@ class CassandraCFs(object):
         return CassandraCFs._all_cfs[name]
     # end get_cf
 
+    @classmethod
+    def reset(cls):
+        cls._all_cfs = {}
 # end CassandraCFs
 
 class FakeCF(object):
@@ -222,15 +225,15 @@ class FakeNovaClient(object):
     class flavors:
 
         @staticmethod
-        def find(ram):
-            return None
+        def find(*args, **kwargs):
+            return 1
     # end class flavors
 
     class images:
 
         @staticmethod
         def find(name):
-            return None
+            return 1
     # end class images
 
     class servers:
@@ -276,6 +279,7 @@ class FakeNovaClient(object):
             vm.status = 'OK'
             return vm
         # end find
+        get = find
     # end class servers
 
     @staticmethod
@@ -564,10 +568,10 @@ class FakeKombu(object):
 
     class Exchange(object):
         def __init__(self, *args, **kwargs):
-            self.queues = {}
+            pass
 
         def _new_queue(self, q_name, q_obj):
-            self.queues[q_name] = q_obj
+            FakeKombu._queues[q_name] = q_obj
         # end __init__
     # end Exchange
 
@@ -657,7 +661,7 @@ class FakeKombu(object):
             self.callbacks = kwargs['callbacks']
         # end __init__
 
-        def _consume(self):
+        def consume(self):
             while True:
                 try:
                     msg = self.queues.get()
@@ -665,14 +669,10 @@ class FakeKombu(object):
                         c(msg.payload, msg)
                 except Exception:
                     pass
-        # end _consume
-
-        def consume(self):
-            self.geventlet = gevent.spawn(self._consume)
         # end consume
 
         def close(self):
-            self.geventlet.kill()
+            pass
         # end close
 
     # end class Consumer
@@ -683,7 +683,7 @@ class FakeKombu(object):
         # end __init__
 
         def publish(self, payload):
-            for q in self.exchange.queues.values():
+            for q in FakeKombu._queues.values():
                 msg_obj = FakeKombu.Queue.Message(payload)
                 q.put(msg_obj, None)
         #end publish
@@ -694,6 +694,9 @@ class FakeKombu(object):
 
     # end class Producer
 
+    @classmethod
+    def reset(cls):
+        cls._queues = {}
 # end class FakeKombu
 
 class FakeRedis(object):

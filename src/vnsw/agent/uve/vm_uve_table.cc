@@ -114,10 +114,11 @@ void VmUveTable::SendVmStats(void) {
     }
 }
 
-void VmUveTable::SendVmDeleteMsg(const string &vm_name) {
-    VmUveTableBase::SendVmDeleteMsg(vm_name);
-    VirtualMachineStats uve;
-    uve.set_name(vm_name);
-    uve.set_deleted(true);
-    DispatchVmStatsMsg(uve);
+void VmUveTable::SendVmDeleteMsg(const string &vm_config_name) {
+    VmUveTableBase::SendVmDeleteMsg(vm_config_name);
+
+    VirtualMachineStats stats_uve;
+    stats_uve.set_name(vm_config_name);
+    stats_uve.set_deleted(true);
+    DispatchVmStatsMsg(stats_uve);
 }

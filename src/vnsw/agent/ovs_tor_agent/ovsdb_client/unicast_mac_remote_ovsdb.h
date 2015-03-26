@@ -17,7 +17,8 @@ class VrfOvsdbObject;
 
 class UnicastMacRemoteTable : public OvsdbDBObject {
 public:
-    UnicastMacRemoteTable(OvsdbClientIdl *idl, AgentRouteTable *table);
+    UnicastMacRemoteTable(OvsdbClientIdl *idl, AgentRouteTable *table,
+                          const std::string &logical_switch_name);
     virtual ~UnicastMacRemoteTable();
 
     void OvsdbNotify(OvsdbClientIdl::Op, struct ovsdb_idl_row *);
@@ -32,10 +33,12 @@ public:
     void Unregister();
     virtual void EmptyTable();
 
+    const std::string &logical_switch_name() const;
     void set_deleted(bool deleted);
     bool deleted();
 
 private:
+    std::string logical_switch_name_;
     bool deleted_;
     LifetimeRef<UnicastMacRemoteTable> table_delete_ref_;
     DISALLOW_COPY_AND_ASSIGN(UnicastMacRemoteTable);
@@ -43,18 +46,27 @@ private:
 
 class UnicastMacRemoteEntry : public OvsdbDBEntry {
 public:
+    typedef std::set<struct ovsdb_idl_row *> OvsdbDupIdlList;
     enum Trace {
         ADD_REQ,
         DEL_REQ,
         ADD_ACK,
         DEL_ACK,
     };
-    UnicastMacRemoteEntry(OvsdbDBObject *table, const std::string mac,
-            const std::string logical_switch);
-    UnicastMacRemoteEntry(OvsdbDBObject *table, const BridgeRouteEntry *entry);
-    UnicastMacRemoteEntry(OvsdbDBObject *table, const UnicastMacRemoteEntry *key);
-    UnicastMacRemoteEntry(OvsdbDBObject *table,
-            struct ovsdb_idl_row *entry);
+    UnicastMacRemoteEntry(UnicastMacRemoteTable *table, const std::string mac);
+    UnicastMacRemoteEntry(UnicastMacRemoteTable *table,
+                          const BridgeRouteEntry *entry);
+    UnicastMacRemoteEntry(UnicastMacRemoteTable *table,
+                          const UnicastMacRemoteEntry *key);
+    UnicastMacRemoteEntry(UnicastMacRemoteTable *table,
+                          struct ovsdb_idl_row *entry);
+
+    // OVSDB schema does not consider a key for unicast mac remote entry
+    // so over-ride the default behaviour of NotifyAdd and NotifyDelete
+    // to handle multiple possible idl row associated with single unicast
+    // mac remote entry.
+    virtual void NotifyAdd(struct ovsdb_idl_row *);
+    virtual void NotifyDelete(struct ovsdb_idl_row *);
 
     void PreAddChange();
     void PostDelete();
@@ -78,11 +90,14 @@ private:
     friend class UnicastMacRemoteTable;
     friend class VrfOvsdbObject;
     void SendTrace(Trace event) const;
+    void DeleteDupEntries(struct ovsdb_idl_txn *);
+
     std::string mac_;
     std::string logical_switch_name_;
     std::string dest_ip_;
     bool self_exported_route_;
     KSyncEntryPtr logical_switch_;
+    OvsdbDupIdlList dup_list_;
     DISALLOW_COPY_AND_ASSIGN(UnicastMacRemoteEntry);
 };
 

@@ -17,6 +17,7 @@ VmUveEntry::~VmUveEntry() {
 bool VmUveEntry::FrameInterfaceStatsMsg(const VmInterface *vm_intf,
                                         VmInterfaceStats *s_intf) const {
     uint64_t in_band, out_band;
+    assert(!deleted_);
     if (vm_intf->cfg_name() == agent_->NullString()) {
         return false;
     }
@@ -98,7 +99,6 @@ bool VmUveEntry::FrameVmStatsMsg(UveVirtualMachineAgent *uve,
                                  VirtualMachineStats *stats_uve,
                                  bool *stats_uve_changed) {
     bool changed = false;
-    assert(!deleted_);
     uve->set_name(vm_config_name());
     stats_uve->set_name(vm_config_name());
     vector<VmInterfaceStats> s_intf_list;
@@ -233,3 +233,7 @@ VmUveEntryBase::FloatingIp * VmUveEntry::FipEntry(uint32_t fip, const string &vn
     return (*intf_it).get()->FipEntry(fip, vn);
 }
 
+void VmUveEntry::Reset() {
+    VmUveEntryBase::Reset();
+    port_bitmap_.Reset();
+}

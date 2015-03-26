@@ -348,6 +348,27 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
         assert(vizd_obj.set_alarmgen_partition(3,1) == 'true')
         assert(vizd_obj.verify_uvetable_alarm("ObjectCollectorInfo",
             "ObjectCollectorInfo:" + socket.gethostname(), "ProcessStatus"))
+        # setup generator for sending Vrouter build_info
+        collector = vizd_obj.collectors[0].get_addr()
+        alarm_gen1 = self.useFixture(
+            GeneratorFixture('vrouter-agent', [collector], logging,
+                             None, hostname=socket.gethostname()))
+        alarm_gen1.verify_on_setup()
+
+        assert(vizd_obj.verify_uvetable_alarm("ObjectVRouter",
+            None, None))
+
+        # send vrouter UVE without build_info !!!
+        # check for PartialSysinfo alarm
+        alarm_gen1.send_vrouterinfo("myvrouter")
+        assert(vizd_obj.verify_uvetable_alarm("ObjectVRouter",
+            "ObjectVRouter:myvrouter", "PartialSysinfo"))
+
+        # Now try to clear the alarm by sending build_info
+        alarm_gen1.send_vrouterinfo("myvrouter", True)
+        assert(vizd_obj.verify_uvetable_alarm("ObjectVRouter",
+            "ObjectVRouter:myvrouter", "PartialSysinfo", is_set = False))
+ 
         return True
     # end test_06_alarmgen_basic
 
@@ -511,16 +532,18 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
         alarms = alarm_gen1.create_alarm('InPktsThreshold',
                     'UveVirtualNetworkAgent.in_tpkts < 2',
                     'UveVirtualNetworkAgent.in_tpkts == 2')
+        alarms += alarm_gen1.create_alarm('InBytesThreshold',
+                    'UveVirtualNetworkAgent.in_bytes < 512',
+                    'UveVirtualNetworkAgent.in_bytes == 1024', ack=True)
         alarm_gen1.send_alarm(vn_list[1], alarms, VN_TABLE)
         alarms = alarm_gen2.create_alarm('ConfigNotPresent',
                     'UveVirtualNetworkConfig != False',
-                    'UveVirtualNetworkConfig == False')
+                    'UveVirtualNetworkConfig == False', ack=False)
         alarm_gen2.send_alarm(vn_list[2], alarms, VN_TABLE)
 
         filt_test = [
             # no filter
             {
-                'kfilt': None,
                 'uve_list_get': [
                     'default-domain:project1:vn1',
                     'default-domain:project1:vn2',
@@ -550,7 +573,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                 'UveVirtualNetworkConfig': {
                                     'total_acl_rules': 3
                                 },
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'InPktsThreshold',
@@ -560,6 +583,16 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'value': 'UveVirtualNetworkAgent.in_tpkts == 2'
                                                 }
                                             ]
+                                        },
+                                        {
+                                            'type': 'InBytesThreshold',
+                                            'description': [
+                                                {
+                                                    'rule': 'UveVirtualNetworkAgent.in_bytes < 512',
+                                                    'value': 'UveVirtualNetworkAgent.in_bytes == 1024',
+                                                }
+                                            ],
+                                            'ack': True
                                         }
                                     ]
                                 }
@@ -572,7 +605,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                     'in_tpkts': 4,
                                     'in_bytes': 128
                                 },
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'ConfigNotPresent',
@@ -581,7 +614,8 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'rule': 'UveVirtualNetworkConfig != False',
                                                     'value': 'UveVirtualNetworkConfig == False'
                                                 }
-                                            ]
+                                            ],
+                                            'ack': False
                                         }
                                     ]
                                 }
@@ -598,7 +632,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                         {
                             'name': 'default-domain:project1:vn2',
                             'value': {
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'InPktsThreshold',
@@ -608,6 +642,16 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'value': 'UveVirtualNetworkAgent.in_tpkts == 2'
                                                 }
                                             ]
+                                        },
+                                        {
+                                            'type': 'InBytesThreshold',
+                                            'description': [
+                                                {
+                                                    'rule': 'UveVirtualNetworkAgent.in_bytes < 512',
+                                                    'value': 'UveVirtualNetworkAgent.in_bytes == 1024',
+                                                }
+                                            ],
+                                            'ack': True
                                         }
                                     ]
                                 }
@@ -616,7 +660,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                         {
                             'name': 'default-domain:project2:vn1',
                             'value': {
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'ConfigNotPresent',
@@ -625,7 +669,8 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'rule': 'UveVirtualNetworkConfig != False',
                                                     'value': 'UveVirtualNetworkConfig == False'
                                                 }
-                                            ]
+                                            ],
+                                            'ack': False
                                         }
                                     ]
                                 }
@@ -667,7 +712,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                 'UveVirtualNetworkConfig': {
                                     'total_acl_rules': 3
                                 },
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'InPktsThreshold',
@@ -677,6 +722,16 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'value': 'UveVirtualNetworkAgent.in_tpkts == 2'
                                                 }
                                             ]
+                                        },
+                                        {
+                                            'type': 'InBytesThreshold',
+                                            'description': [
+                                                {
+                                                    'rule': 'UveVirtualNetworkAgent.in_bytes < 512',
+                                                    'value': 'UveVirtualNetworkAgent.in_bytes == 1024',
+                                                }
+                                            ],
+                                            'ack': True
                                         }
                                     ]
                                 }
@@ -689,7 +744,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                     'in_tpkts': 4,
                                     'in_bytes': 128
                                 },
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'ConfigNotPresent',
@@ -698,7 +753,8 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'rule': 'UveVirtualNetworkConfig != False',
                                                     'value': 'UveVirtualNetworkConfig == False'
                                                 }
-                                            ]
+                                            ],
+                                            'ack': False
                                         }
                                     ]
                                 }
@@ -715,7 +771,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                         {
                             'name': 'default-domain:project1:vn2',
                             'value': {
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'InPktsThreshold',
@@ -725,6 +781,16 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'value': 'UveVirtualNetworkAgent.in_tpkts == 2'
                                                 }
                                             ]
+                                        },
+                                        {
+                                            'type': 'InBytesThreshold',
+                                            'description': [
+                                                {
+                                                    'rule': 'UveVirtualNetworkAgent.in_bytes < 512',
+                                                    'value': 'UveVirtualNetworkAgent.in_bytes == 1024',
+                                                }
+                                            ],
+                                            'ack': True
                                         }
                                     ]
                                 }
@@ -733,7 +799,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                         {
                             'name': 'default-domain:project2:vn1',
                             'value': {
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'ConfigNotPresent',
@@ -742,7 +808,8 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'rule': 'UveVirtualNetworkConfig != False',
                                                     'value': 'UveVirtualNetworkConfig == False'
                                                 }
-                                            ]
+                                            ],
+                                            'ack': False
                                         }
                                     ]
                                 }
@@ -783,7 +850,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                 'UveVirtualNetworkConfig': {
                                     'total_acl_rules': 3
                                 },
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'InPktsThreshold',
@@ -793,6 +860,16 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'value': 'UveVirtualNetworkAgent.in_tpkts == 2'
                                                 }
                                             ]
+                                        },
+                                        {
+                                            'type': 'InBytesThreshold',
+                                            'description': [
+                                                {
+                                                    'rule': 'UveVirtualNetworkAgent.in_bytes < 512',
+                                                    'value': 'UveVirtualNetworkAgent.in_bytes == 1024',
+                                                }
+                                            ],
+                                            'ack': True
                                         }
                                     ]
                                 }
@@ -805,7 +882,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                     'in_tpkts': 4,
                                     'in_bytes': 128
                                 },
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'ConfigNotPresent',
@@ -814,7 +891,8 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'rule': 'UveVirtualNetworkConfig != False',
                                                     'value': 'UveVirtualNetworkConfig == False'
                                                 }
-                                            ]
+                                            ],
+                                            'ack': False
                                         }
                                     ]
                                 }
@@ -831,7 +909,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                         {
                             'name': 'default-domain:project1:vn2',
                             'value': {
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'InPktsThreshold',
@@ -841,6 +919,16 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'value': 'UveVirtualNetworkAgent.in_tpkts == 2'
                                                 }
                                             ]
+                                        },
+                                        {
+                                            'type': 'InBytesThreshold',
+                                            'description': [
+                                                {
+                                                    'rule': 'UveVirtualNetworkAgent.in_bytes < 512',
+                                                    'value': 'UveVirtualNetworkAgent.in_bytes == 1024',
+                                                }
+                                            ],
+                                            'ack': True
                                         }
                                     ]
                                 }
@@ -849,7 +937,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                         {
                             'name': 'default-domain:project2:vn1',
                             'value': {
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'ConfigNotPresent',
@@ -858,7 +946,8 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'rule': 'UveVirtualNetworkConfig != False',
                                                     'value': 'UveVirtualNetworkConfig == False'
                                                 }
-                                            ]
+                                            ],
+                                            'ack': False
                                         }
                                     ]
                                 }
@@ -894,7 +983,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                     'in_tpkts': 4,
                                     'in_bytes': 128
                                 },
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'ConfigNotPresent',
@@ -903,7 +992,8 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'rule': 'UveVirtualNetworkConfig != False',
                                                     'value': 'UveVirtualNetworkConfig == False'
                                                 }
-                                            ]
+                                            ],
+                                            'ack': False
                                         }
                                     ]
                                 }
@@ -919,7 +1009,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                         {
                             'name': 'default-domain:project2:vn1',
                             'value': {
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'ConfigNotPresent',
@@ -928,7 +1018,8 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'rule': 'UveVirtualNetworkConfig != False',
                                                     'value': 'UveVirtualNetworkConfig == False'
                                                 }
-                                            ]
+                                            ],
+                                            'ack': False
                                         }
                                     ]
                                 }
@@ -954,7 +1045,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                     'in_tpkts': 4,
                                     'in_bytes': 128
                                 },
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'ConfigNotPresent',
@@ -963,7 +1054,8 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'rule': 'UveVirtualNetworkConfig != False',
                                                     'value': 'UveVirtualNetworkConfig == False'
                                                 }
-                                            ]
+                                            ],
+                                            'ack': False
                                         }
                                     ]
                                 }
@@ -979,7 +1071,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                         {
                             'name': 'default-domain:project2:vn1',
                             'value': {
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'ConfigNotPresent',
@@ -988,7 +1080,8 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'rule': 'UveVirtualNetworkConfig != False',
                                                     'value': 'UveVirtualNetworkConfig == False'
                                                 }
-                                            ]
+                                            ],
+                                            'ack': False
                                         }
                                     ]
                                 }
@@ -1020,7 +1113,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                 'UveVirtualNetworkConfig': {
                                     'total_acl_rules': 3
                                 },
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'InPktsThreshold',
@@ -1030,6 +1123,16 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'value': 'UveVirtualNetworkAgent.in_tpkts == 2'
                                                 }
                                             ]
+                                        },
+                                        {
+                                            'type': 'InBytesThreshold',
+                                            'description': [
+                                                {
+                                                    'rule': 'UveVirtualNetworkAgent.in_bytes < 512',
+                                                    'value': 'UveVirtualNetworkAgent.in_bytes == 1024',
+                                                }
+                                            ],
+                                            'ack': True
                                         }
                                     ]
                                 }
@@ -1042,7 +1145,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                     'in_tpkts': 4,
                                     'in_bytes': 128
                                 },
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'ConfigNotPresent',
@@ -1051,7 +1154,8 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'rule': 'UveVirtualNetworkConfig != False',
                                                     'value': 'UveVirtualNetworkConfig == False'
                                                 }
-                                            ]
+                                            ],
+                                            'ack': False
                                         }
                                     ]
                                 }
@@ -1068,7 +1172,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                         {
                             'name': 'default-domain:project1:vn2',
                             'value': {
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'InPktsThreshold',
@@ -1078,6 +1182,16 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'value': 'UveVirtualNetworkAgent.in_tpkts == 2'
                                                 }
                                             ]
+                                        },
+                                        {
+                                            'type': 'InBytesThreshold',
+                                            'description': [
+                                                {
+                                                    'rule': 'UveVirtualNetworkAgent.in_bytes < 512',
+                                                    'value': 'UveVirtualNetworkAgent.in_bytes == 1024',
+                                                }
+                                            ],
+                                            'ack': True
                                         }
                                     ]
                                 }
@@ -1086,7 +1200,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                         {
                             'name': 'default-domain:project2:vn1',
                             'value': {
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'ConfigNotPresent',
@@ -1095,7 +1209,8 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'rule': 'UveVirtualNetworkConfig != False',
                                                     'value': 'UveVirtualNetworkConfig == False'
                                                 }
-                                            ]
+                                            ],
+                                            'ack': False
                                         }
                                     ]
                                 }
@@ -1138,7 +1253,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                 'UveVirtualNetworkConfig': {
                                     'total_acl_rules': 3
                                 },
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'InPktsThreshold',
@@ -1148,6 +1263,16 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'value': 'UveVirtualNetworkAgent.in_tpkts == 2'
                                                 }
                                             ]
+                                        },
+                                        {
+                                            'type': 'InBytesThreshold',
+                                            'description': [
+                                                {
+                                                    'rule': 'UveVirtualNetworkAgent.in_bytes < 512',
+                                                    'value': 'UveVirtualNetworkAgent.in_bytes == 1024',
+                                                }
+                                            ],
+                                            'ack': True
                                         }
                                     ]
                                 }
@@ -1163,7 +1288,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                         {
                             'name': 'default-domain:project1:vn2',
                             'value': {
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'InPktsThreshold',
@@ -1173,6 +1298,16 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'value': 'UveVirtualNetworkAgent.in_tpkts == 2'
                                                 }
                                             ]
+                                        },
+                                        {
+                                            'type': 'InBytesThreshold',
+                                            'description': [
+                                                {
+                                                    'rule': 'UveVirtualNetworkAgent.in_bytes < 512',
+                                                    'value': 'UveVirtualNetworkAgent.in_bytes == 1024',
+                                                }
+                                            ],
+                                            'ack': True
                                         }
                                     ]
                                 }
@@ -1191,7 +1326,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                         {
                             'name': 'default-domain:project2:vn1',
                             'value': {
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'ConfigNotPresent',
@@ -1200,7 +1335,8 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'rule': 'UveVirtualNetworkConfig != False',
                                                     'value': 'UveVirtualNetworkConfig == False'
                                                 }
-                                            ]
+                                            ],
+                                            'ack': False
                                         }
                                     ]
                                 }
@@ -1216,7 +1352,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                         {
                             'name': 'default-domain:project2:vn1',
                             'value': {
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'ConfigNotPresent',
@@ -1225,7 +1361,8 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'rule': 'UveVirtualNetworkConfig != False',
                                                     'value': 'UveVirtualNetworkConfig == False'
                                                 }
-                                            ]
+                                            ],
+                                            'ack': False
                                         }
                                     ]
                                 }
@@ -1286,7 +1423,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                         {
                             'name': 'default-domain:project1:vn2',
                             'value': {
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'InPktsThreshold',
@@ -1296,6 +1433,16 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'value': 'UveVirtualNetworkAgent.in_tpkts == 2'
                                                 }
                                             ]
+                                        },
+                                        {
+                                            'type': 'InBytesThreshold',
+                                            'description': [
+                                                {
+                                                    'rule': 'UveVirtualNetworkAgent.in_bytes < 512',
+                                                    'value': 'UveVirtualNetworkAgent.in_bytes == 1024',
+                                                }
+                                            ],
+                                            'ack': True
                                         }
                                     ]
                                 }
@@ -1304,7 +1451,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                         {
                             'name': 'default-domain:project2:vn1',
                             'value': {
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'ConfigNotPresent',
@@ -1313,7 +1460,8 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'rule': 'UveVirtualNetworkConfig != False',
                                                     'value': 'UveVirtualNetworkConfig == False'
                                                 }
-                                            ]
+                                            ],
+                                            'ack': False
                                         }
                                     ]
                                 }
@@ -1330,7 +1478,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                         {
                             'name': 'default-domain:project1:vn2',
                             'value': {
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'InPktsThreshold',
@@ -1340,6 +1488,16 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'value': 'UveVirtualNetworkAgent.in_tpkts == 2'
                                                 }
                                             ]
+                                        },
+                                        {
+                                            'type': 'InBytesThreshold',
+                                            'description': [
+                                                {
+                                                    'rule': 'UveVirtualNetworkAgent.in_bytes < 512',
+                                                    'value': 'UveVirtualNetworkAgent.in_bytes == 1024',
+                                                }
+                                            ],
+                                            'ack': True
                                         }
                                     ]
                                 }
@@ -1348,7 +1506,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                         {
                             'name': 'default-domain:project2:vn1',
                             'value': {
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'ConfigNotPresent',
@@ -1357,7 +1515,8 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'rule': 'UveVirtualNetworkConfig != False',
                                                     'value': 'UveVirtualNetworkConfig == False'
                                                 }
-                                            ]
+                                            ],
+                                            'ack': False
                                         }
                                     ]
                                 }
@@ -1445,7 +1604,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                 'cfilt': [
                     'UveVirtualNetworkConfig:invalid',
                     'UveVirtualNetworkAgent:in_tpkts',
-                    'AlarmData:alarms'
+                    'UVEAlarms:alarms'
                 ],
                 'uve_list_get': [
                     'default-domain:project1:vn2',
@@ -1459,7 +1618,251 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                 'UveVirtualNetworkAgent': {
                                     'in_tpkts': 2,
                                 },
-                                'AlarmData': {
+                                'UVEAlarms': {
+                                    'alarms': [
+                                        {
+                                            'type': 'InPktsThreshold',
+                                            'description': [
+                                                {
+                                                    'rule': 'UveVirtualNetworkAgent.in_tpkts < 2',
+                                                    'value': 'UveVirtualNetworkAgent.in_tpkts == 2'
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            'type': 'InBytesThreshold',
+                                            'description': [
+                                                {
+                                                    'rule': 'UveVirtualNetworkAgent.in_bytes < 512',
+                                                    'value': 'UveVirtualNetworkAgent.in_bytes == 1024',
+                                                }
+                                            ],
+                                            'ack': True
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            'name': 'default-domain:project2:vn1',
+                            'value': {
+                                'UveVirtualNetworkAgent': {
+                                    'in_tpkts': 4,
+                                },
+                                'UVEAlarms': {
+                                    'alarms': [
+                                        {
+                                            'type': 'ConfigNotPresent',
+                                            'description': [
+                                                {
+                                                    'rule': 'UveVirtualNetworkConfig != False',
+                                                    'value': 'UveVirtualNetworkConfig == False'
+                                                }
+                                            ],
+                                            'ack': False
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    ]
+                },
+                'alarm_list_get': [
+                    'default-domain:project1:vn2',
+                    'default-domain:project2:vn1'
+                ],
+                'alarm_get_post': {
+                    'value': [
+                        {
+                            'name': 'default-domain:project1:vn2',
+                            'value': {
+                                'UVEAlarms': {
+                                    'alarms': [
+                                        {
+                                            'type': 'InPktsThreshold',
+                                            'description': [
+                                                {
+                                                    'rule': 'UveVirtualNetworkAgent.in_tpkts < 2',
+                                                    'value': 'UveVirtualNetworkAgent.in_tpkts == 2'
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            'type': 'InBytesThreshold',
+                                            'description': [
+                                                {
+                                                    'rule': 'UveVirtualNetworkAgent.in_bytes < 512',
+                                                    'value': 'UveVirtualNetworkAgent.in_bytes == 1024',
+                                                }
+                                            ],
+                                            'ack': True
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            'name': 'default-domain:project2:vn1',
+                            'value': {
+                                'UVEAlarms': {
+                                    'alarms': [
+                                        {
+                                            'type': 'ConfigNotPresent',
+                                            'description': [
+                                                {
+                                                    'rule': 'UveVirtualNetworkConfig != False',
+                                                    'value': 'UveVirtualNetworkConfig == False'
+                                                }
+                                            ],
+                                            'ack': False
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                'cfilt': [
+                    'UveVirtualNetworkAgent:invalid',
+                    'UVEAlarms:invalid_alarms',
+                    'invalid'
+                ],
+                'uve_list_get': [],
+                'uve_get_post': {'value': []},
+                'alarm_list_get': [],
+                'alarm_get_post': {'value': []}
+            },
+
+            # ackfilt
+            {
+                'ackfilt': True,
+                'uve_list_get': [
+                    'default-domain:project1:vn1',
+                    'default-domain:project1:vn2',
+                    'default-domain:project2:vn1'
+                ],
+                'uve_get_post': {
+                    'value': [
+                        {
+                            'name': 'default-domain:project1:vn1',
+                            'value': {
+                                'UveVirtualNetworkConfig': {
+                                    'partially_connected_networks': [
+                                        'default-domain:project1:vn2'
+                                    ],
+                                    'total_acl_rules': 2
+                                }
+                            }
+                        },
+                        {
+                            'name': 'default-domain:project1:vn2',
+                            'value': {
+                                'UveVirtualNetworkAgent': {
+                                    'in_tpkts': 2,
+                                    'in_bytes': 1024,
+                                    'total_acl_rules': 3
+                                },
+                                'UveVirtualNetworkConfig': {
+                                    'total_acl_rules': 3
+                                },
+                                'UVEAlarms': {
+                                    'alarms': [
+                                        {
+                                            'type': 'InBytesThreshold',
+                                            'description': [
+                                                {
+                                                    'rule': 'UveVirtualNetworkAgent.in_bytes < 512',
+                                                    'value': 'UveVirtualNetworkAgent.in_bytes == 1024',
+                                                }
+                                            ],
+                                            'ack': True
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            'name': 'default-domain:project2:vn1',
+                            'value': {
+                                'UveVirtualNetworkAgent': {
+                                    'in_tpkts': 4,
+                                    'in_bytes': 128
+                                },
+                                'UVEAlarms': {
+                                }
+                            }
+                        }
+                    ]
+                },
+                'alarm_list_get': [
+                    'default-domain:project1:vn2',
+                    'default-domain:project2:vn1'
+                ],
+                'alarm_get_post': {
+                    'value': [
+                        {
+                            'name': 'default-domain:project1:vn2',
+                            'value': {
+                                'UVEAlarms': {
+                                    'alarms': [
+                                        {
+                                            'type': 'InBytesThreshold',
+                                            'description': [
+                                                {
+                                                    'rule': 'UveVirtualNetworkAgent.in_bytes < 512',
+                                                    'value': 'UveVirtualNetworkAgent.in_bytes == 1024',
+                                                }
+                                            ],
+                                            'ack': True
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            'name': 'default-domain:project2:vn1',
+                            'value': {
+                                'UVEAlarms': {
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                'ackfilt': False,
+                'uve_list_get': [
+                    'default-domain:project1:vn1',
+                    'default-domain:project1:vn2',
+                    'default-domain:project2:vn1'
+                ],
+                'uve_get_post': {
+                    'value': [
+                        {
+                            'name': 'default-domain:project1:vn1',
+                            'value': {
+                                'UveVirtualNetworkConfig': {
+                                    'partially_connected_networks': [
+                                        'default-domain:project1:vn2'
+                                    ],
+                                    'total_acl_rules': 2
+                                }
+                            }
+                        },
+                        {
+                            'name': 'default-domain:project1:vn2',
+                            'value': {
+                                'UveVirtualNetworkAgent': {
+                                    'in_tpkts': 2,
+                                    'in_bytes': 1024,
+                                    'total_acl_rules': 3
+                                },
+                                'UveVirtualNetworkConfig': {
+                                    'total_acl_rules': 3
+                                },
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'InPktsThreshold',
@@ -1479,8 +1882,9 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                             'value': {
                                 'UveVirtualNetworkAgent': {
                                     'in_tpkts': 4,
+                                    'in_bytes': 128
                                 },
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'ConfigNotPresent',
@@ -1489,7 +1893,8 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'rule': 'UveVirtualNetworkConfig != False',
                                                     'value': 'UveVirtualNetworkConfig == False'
                                                 }
-                                            ]
+                                            ],
+                                            'ack': False
                                         }
                                     ]
                                 }
@@ -1506,7 +1911,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                         {
                             'name': 'default-domain:project1:vn2',
                             'value': {
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'InPktsThreshold',
@@ -1524,7 +1929,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                         {
                             'name': 'default-domain:project2:vn1',
                             'value': {
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'ConfigNotPresent',
@@ -1533,7 +1938,8 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'rule': 'UveVirtualNetworkConfig != False',
                                                     'value': 'UveVirtualNetworkConfig == False'
                                                 }
-                                            ]
+                                            ],
+                                            'ack': False
                                         }
                                     ]
                                 }
@@ -1541,17 +1947,6 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                         }
                     ]
                 }
-            },
-            {
-                'cfilt': [
-                    'UveVirtualNetworkAgent:invalid',
-                    'AlarmData:invalid_alarms',
-                    'invalid'
-                ],
-                'uve_list_get': [],
-                'uve_get_post': {'value': []},
-                'alarm_list_get': [],
-                'alarm_get_post': {'value': []}
             },
 
             # kfilt + sfilt
@@ -1593,6 +1988,35 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                 'alarm_get_post': {'value': []}
             },
 
+            # kfilt + sfilt + ackfilt
+            {
+                'kfilt': [
+                    'default-domain:project1:vn1',
+                    'default-domain:project2:*',
+                    'default-domain:invalid'
+                ],
+                'sfilt': socket.gethostname()+'_2',
+                'ackfilt': True,
+                'uve_list_get': [
+                    'default-domain:project2:vn1'
+                ],
+                'uve_get_post': {
+                    'value': [
+                        {
+                            'name': 'default-domain:project2:vn1',
+                            'value': {
+                                'UveVirtualNetworkAgent': {
+                                    'in_tpkts': 4,
+                                    'in_bytes': 128
+                                }
+                            }
+                        }
+                    ]
+                },
+                'alarm_list_get': [],
+                'alarm_get_post': {'value': []}
+            },
+
             # kfilt + sfilt + cfilt
             {
                 'kfilt': [
@@ -1603,7 +2027,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                 'sfilt': socket.gethostname()+'_1',
                 'cfilt': [
                     'UveVirtualNetworkAgent',
-                    'AlarmData',
+                    'UVEAlarms',
                     'UveVirtualNetworkConfig:Invalid'
                 ],
                 'uve_list_get': [
@@ -1614,7 +2038,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                         {
                             'name': 'default-domain:project1:vn2',
                             'value': {
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'InPktsThreshold',
@@ -1624,6 +2048,16 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'value': 'UveVirtualNetworkAgent.in_tpkts == 2'
                                                 }
                                             ]
+                                        },
+                                        {
+                                            'type': 'InBytesThreshold',
+                                            'description': [
+                                                {
+                                                    'rule': 'UveVirtualNetworkAgent.in_bytes < 512',
+                                                    'value': 'UveVirtualNetworkAgent.in_bytes == 1024',
+                                                }
+                                            ],
+                                            'ack': True
                                         }
                                     ]
                                 }
@@ -1639,7 +2073,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                         {
                             'name': 'default-domain:project1:vn2',
                             'value': {
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'InPktsThreshold',
@@ -1649,6 +2083,16 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'value': 'UveVirtualNetworkAgent.in_tpkts == 2'
                                                 }
                                             ]
+                                        },
+                                        {
+                                            'type': 'InBytesThreshold',
+                                            'description': [
+                                                {
+                                                    'rule': 'UveVirtualNetworkAgent.in_bytes < 512',
+                                                    'value': 'UveVirtualNetworkAgent.in_bytes == 1024',
+                                                }
+                                            ],
+                                            'ack': True
                                         }
                                     ]
                                 }
@@ -1664,7 +2108,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                 'mfilt': 'Config:contrail-api:0',
                 'cfilt': [
                     'UveVirtualNetworkAgent',
-                    'AlarmData:alarms'
+                    'UVEAlarms:alarms'
                 ],
                 'uve_list_get': [],
                 'uve_get_post': {'value': []},
@@ -1684,7 +2128,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                 'cfilt': [
                     'UveVirtualNetworkConfig:partially_connected_networks',
                     'UveVirtualNetworkConfig:total_acl_rules',
-                    'AlarmData'
+                    'UVEAlarms'
                 ],
                 'uve_list_get': [
                     'default-domain:project1:vn1',
@@ -1726,7 +2170,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                 'mfilt': 'Analytics:contrail-alarm-gen:0',
                 'cfilt': [
                     'UveVirtualNetworkConfig',
-                    'AlarmData:alarms',
+                    'UVEAlarms:alarms',
                     'UveVirtualNetworkAgent'
                 ],
                 'uve_list_get': [
@@ -1737,7 +2181,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                         {
                             'name': 'default-domain:project2:vn1',
                             'value': {
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'ConfigNotPresent',
@@ -1746,7 +2190,8 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'rule': 'UveVirtualNetworkConfig != False',
                                                     'value': 'UveVirtualNetworkConfig == False'
                                                 }
-                                            ]
+                                            ],
+                                            'ack': False
                                         }
                                     ]
                                 }
@@ -1762,7 +2207,7 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                         {
                             'name': 'default-domain:project2:vn1',
                             'value': {
-                                'AlarmData': {
+                                'UVEAlarms': {
                                     'alarms': [
                                         {
                                             'type': 'ConfigNotPresent',
@@ -1771,9 +2216,55 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
                                                     'rule': 'UveVirtualNetworkConfig != False',
                                                     'value': 'UveVirtualNetworkConfig == False'
                                                 }
-                                            ]
+                                            ],
+                                            'ack': False
                                         }
                                     ]
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+
+            # kfilt + sfilt + mfilt + cfilt + ackfilt
+            {
+                'kfilt': [
+                    'default-domain:project1:*',
+                    'default-domain:project2:vn1',
+                    'default-domain:project2:invalid'
+                ],
+                'sfilt': socket.gethostname()+'_3',
+                'mfilt': 'Analytics:contrail-alarm-gen:0',
+                'cfilt': [
+                    'UveVirtualNetworkConfig',
+                    'UVEAlarms:alarms',
+                    'UveVirtualNetworkAgent'
+                ],
+                'ackfilt': True,
+                'uve_list_get': [
+                    'default-domain:project2:vn1'
+                ],
+                'uve_get_post': {
+                    'value': [
+                        {
+                            'name': 'default-domain:project2:vn1',
+                            'value': {
+                                'UVEAlarms': {
+                                }
+                            }
+                        }
+                    ]
+                },
+                'alarm_list_get': [
+                    'default-domain:project2:vn1'
+                ],
+                'alarm_get_post': {
+                    'value': [
+                        {
+                            'name': 'default-domain:project2:vn1',
+                            'value': {
+                                'UVEAlarms': {
                                 }
                             }
                         }
@@ -1785,42 +2276,23 @@ class AnalyticsUveTest(testtools.TestCase, fixtures.TestWithFixtures):
         vn_table = _OBJECT_TABLES[VN_TABLE].log_query_name
 
         for i in range(len(filt_test)):
+            filters = dict(kfilt=filt_test[i].get('kfilt'),
+                           sfilt=filt_test[i].get('sfilt'),
+                           mfilt=filt_test[i].get('mfilt'),
+                           cfilt=filt_test[i].get('cfilt'),
+                           ackfilt=filt_test[i].get('ackfilt'))
             assert(vizd_obj.verify_uve_list(vn_table,
-                kfilt=filt_test[i].get('kfilt'),
-                sfilt=filt_test[i].get('sfilt'),
-                mfilt=filt_test[i].get('mfilt'),
-                cfilt=filt_test[i].get('cfilt'),
-                exp_uve_list=filt_test[i]['uve_list_get']))
+                filts=filters, exp_uve_list=filt_test[i]['uve_list_get']))
             assert(vizd_obj.verify_multi_uve_get(vn_table,
-                kfilt=filt_test[i].get('kfilt'),
-                sfilt=filt_test[i].get('sfilt'),
-                mfilt=filt_test[i].get('mfilt'),
-                cfilt=filt_test[i].get('cfilt'),
-                exp_uves=filt_test[i]['uve_get_post']))
+                filts=filters, exp_uves=filt_test[i]['uve_get_post']))
             assert(vizd_obj.verify_uve_post(vn_table,
-                kfilt=filt_test[i].get('kfilt'),
-                sfilt=filt_test[i].get('sfilt'),
-                mfilt=filt_test[i].get('mfilt'),
-                cfilt=filt_test[i].get('cfilt'),
-                exp_uves=filt_test[i]['uve_get_post']))
+                filts=filters, exp_uves=filt_test[i]['uve_get_post']))
             assert(vizd_obj.verify_alarm_list(vn_table,
-                kfilt=filt_test[i].get('kfilt'),
-                sfilt=filt_test[i].get('sfilt'),
-                mfilt=filt_test[i].get('mfilt'),
-                cfilt=filt_test[i].get('cfilt'),
-                expected_alarms=filt_test[i]['alarm_list_get']))
+                filts=filters, expected_alarms=filt_test[i]['alarm_list_get']))
             assert(vizd_obj.verify_multi_alarm_get(vn_table,
-                kfilt=filt_test[i].get('kfilt'),
-                sfilt=filt_test[i].get('sfilt'),
-                mfilt=filt_test[i].get('mfilt'),
-                cfilt=filt_test[i].get('cfilt'),
-                exp_alarms=filt_test[i]['alarm_get_post']))
+                filts=filters, exp_alarms=filt_test[i]['alarm_get_post']))
             assert(vizd_obj.verify_alarm_post(vn_table,
-                kfilt=filt_test[i].get('kfilt'),
-                sfilt=filt_test[i].get('sfilt'),
-                mfilt=filt_test[i].get('mfilt'),
-                cfilt=filt_test[i].get('cfilt'),
-                exp_alarms=filt_test[i]['alarm_get_post']))
+                filts=filters, exp_alarms=filt_test[i]['alarm_get_post']))
     # end test_08_uve_alarm_filter
 
     @staticmethod

@@ -73,9 +73,9 @@ void VmUveTableBase::set_expiry_time(int time) {
     }
 }
 
-void VmUveTableBase::SendVmDeleteMsg(const string &vm_name) {
+void VmUveTableBase::SendVmDeleteMsg(const string &vm_config_name) {
     UveVirtualMachineAgent uve;
-    uve.set_name(vm_name);
+    uve.set_name(vm_config_name);
     uve.set_deleted(true);
     DispatchVmMsg(uve);
 }
@@ -101,9 +101,9 @@ void VmUveTableBase::Delete(const boost::uuids::uuid &u) {
         return;
     }
     VmUveEntryBase* entry = it->second.get();
-    entry->set_deleted(true);
     /* We need to reset all non-key fields to ensure that they have right
-     * values if the entry gets re-used */
+     * values since the entry is getting re-used. Also update the 'deleted_'
+     * and 'renewed_' flags */
     entry->Reset();
     return;
 }
@@ -171,9 +171,6 @@ void VmUveTableBase::InterfaceDeleteHandler(const boost::uuids::uuid &u,
 
     entry->InterfaceDelete(intf);
     entry->set_changed(true);
-    if (!entry->add_by_vm_notify()) {
-        Delete(u);
-    }
 }
 
 void VmUveTableBase::InterfaceNotify(DBTablePartBase *partition,

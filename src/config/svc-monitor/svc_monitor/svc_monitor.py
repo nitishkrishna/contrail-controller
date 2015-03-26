@@ -241,7 +241,6 @@ class SvcMonitor(object):
             lb_pool = LoadbalancerPoolSM.get(lb_pool_id)
             if lb_pool is not None:
                 lb_pool.add()
-    # end _vnc_subscribe_callback
 
         for si_id in dependency_tracker.resources.get('service_instance', []):
             si = ServiceInstanceSM.get(si_id)
@@ -585,9 +584,6 @@ class SvcMonitor(object):
                     (st.name, str(st.uuid)))
                 return
 
-        st_obj = ServiceTemplate(name=st_name, domain_obj=domain)
-        st_uuid = self._vnc_lib.service_template_create(st_obj)
-
         svc_properties = ServiceTemplateType()
         svc_properties.set_service_type(svc_type)
         svc_properties.set_service_mode(svc_mode)
@@ -618,9 +614,10 @@ class SvcMonitor(object):
             svc_properties.set_instance_data(
                 json.dumps(instance_data, separators=(',', ':')))
 
+        st_obj = ServiceTemplate(name=st_name, domain_obj=domain)
+        st_obj.set_service_template_properties(svc_properties)
         try:
-            st_obj.set_service_template_properties(svc_properties)
-            self._vnc_lib.service_template_update(st_obj)
+            st_uuid = self._vnc_lib.service_template_create(st_obj)
         except Exception as e:
             print e
 
@@ -710,6 +707,12 @@ class SvcMonitor(object):
         except (NoIdError, RefsExistError):
             pass
 
+    @staticmethod
+    def reset():
+        for cls in DBBase._OBJ_TYPE_MAP.values():
+            cls.reset()
+
+
 def timer_callback(monitor):
     # delete vms without si
     vm_delete_list = []
@@ -725,7 +728,7 @@ def timer_callback(monitor):
         si = ServiceInstanceSM.get(si_id)
         if not monitor._check_service_running(si):
             monitor._relaunch_service_instance(si)
-        if si.max_instances > len(si.virtual_machines):
+        if si.max_instances != len(si.virtual_machines):
             monitor._relaunch_service_instance(si)
 
     # check vns to be deleted

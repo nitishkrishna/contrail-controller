@@ -28,34 +28,53 @@ using OVSDB::OvsdbDBEntry;
 using OVSDB::OvsdbDBObject;
 using OVSDB::OvsdbClientSession;
 
-UnicastMacRemoteEntry::UnicastMacRemoteEntry(OvsdbDBObject *table,
-        const std::string mac, const std::string logical_switch) :
-    OvsdbDBEntry(table), mac_(mac), logical_switch_name_(logical_switch),
+UnicastMacRemoteEntry::UnicastMacRemoteEntry(UnicastMacRemoteTable *table,
+        const std::string mac) : OvsdbDBEntry(table), mac_(mac),
+    logical_switch_name_(table->logical_switch_name()),
     self_exported_route_(false) {
 }
 
-UnicastMacRemoteEntry::UnicastMacRemoteEntry(OvsdbDBObject *table,
+UnicastMacRemoteEntry::UnicastMacRemoteEntry(UnicastMacRemoteTable *table,
         const BridgeRouteEntry *entry) : OvsdbDBEntry(table),
         mac_(entry->mac().ToString()),
-        logical_switch_name_(UuidToString(entry->vrf()->vn()->GetUuid())) {
+        logical_switch_name_(table->logical_switch_name()) {
 }
 
-UnicastMacRemoteEntry::UnicastMacRemoteEntry(OvsdbDBObject *table,
+UnicastMacRemoteEntry::UnicastMacRemoteEntry(UnicastMacRemoteTable *table,
         const UnicastMacRemoteEntry *entry) : OvsdbDBEntry(table),
         mac_(entry->mac_), logical_switch_name_(entry->logical_switch_name_),
         dest_ip_(entry->dest_ip_) {
 }
 
-UnicastMacRemoteEntry::UnicastMacRemoteEntry(OvsdbDBObject *table,
+UnicastMacRemoteEntry::UnicastMacRemoteEntry(UnicastMacRemoteTable *table,
         struct ovsdb_idl_row *entry) : OvsdbDBEntry(table, entry),
     mac_(ovsdb_wrapper_ucast_mac_remote_mac(entry)),
-    logical_switch_name_(ovsdb_wrapper_ucast_mac_remote_logical_switch(entry)),
-    dest_ip_() {
+    logical_switch_name_(table->logical_switch_name()), dest_ip_() {
     const char *dest_ip = ovsdb_wrapper_ucast_mac_remote_dst_ip(entry);
     if (dest_ip) {
         dest_ip_ = std::string(dest_ip);
     }
 };
+
+void UnicastMacRemoteEntry::NotifyAdd(struct ovsdb_idl_row *row) {
+    if (ovs_entry() == NULL || ovs_entry() == row) {
+        // this is the first idl row to use let the base infra
+        // use it.
+        OvsdbDBEntry::NotifyAdd(row);
+        return;
+    }
+    dup_list_.insert(row);
+    // trigger change to delete duplicate entries
+    table_->Change(this);
+}
+
+void UnicastMacRemoteEntry::NotifyDelete(struct ovsdb_idl_row *row) {
+    if (ovs_entry() == row) {
+        OvsdbDBEntry::NotifyDelete(row);
+        return;
+    }
+    dup_list_.erase(row);
+}
 
 void UnicastMacRemoteEntry::PreAddChange() {
     boost::system::error_code ec;
@@ -81,6 +100,14 @@ void UnicastMacRemoteEntry::PostDelete() {
 }
 
 void UnicastMacRemoteEntry::AddMsg(struct ovsdb_idl_txn *txn) {
+    if (!dup_list_.empty()) {
+        // if we have entries in duplicate list clean up all
+        // by encoding a delete message and on ack re-trigger
+        // Add Msg to return to sane state.
+        DeleteMsg(txn);
+        return;
+    }
+
     if (logical_switch_.get() == NULL) {
         DeleteMsg(txn);
         return;
@@ -111,6 +138,7 @@ void UnicastMacRemoteEntry::ChangeMsg(struct ovsdb_idl_txn *txn) {
 }
 
 void UnicastMacRemoteEntry::DeleteMsg(struct ovsdb_idl_txn *txn) {
+    DeleteDupEntries(txn);
     if (ovs_entry_) {
         ovsdb_wrapper_delete_ucast_mac_remote(ovs_entry_);
         SendTrace(UnicastMacRemoteEntry::DEL_REQ);
@@ -224,9 +252,19 @@ void UnicastMacRemoteEntry::SendTrace(Trace event) const {
     OVSDB_TRACE(UnicastMacRemote, info);
 }
 
+// Always called from any message encode Add/Change/Delete
+// to trigger delete for deleted entries.
+void UnicastMacRemoteEntry::DeleteDupEntries(struct ovsdb_idl_txn *txn) {
+    OvsdbDupIdlList::iterator it = dup_list_.begin();
+    for (; it != dup_list_.end(); it++) {
+        ovsdb_wrapper_delete_ucast_mac_remote(*it);
+    }
+}
+
 UnicastMacRemoteTable::UnicastMacRemoteTable(OvsdbClientIdl *idl,
-        AgentRouteTable *table) : OvsdbDBObject(idl, table),
-        deleted_(false), table_delete_ref_(this, table->deleter()) {
+        AgentRouteTable *table, const std::string &logical_switch_name) :
+    OvsdbDBObject(idl, table), logical_switch_name_(logical_switch_name),
+    deleted_(false), table_delete_ref_(this, table->deleter()) {
 }
 
 UnicastMacRemoteTable::~UnicastMacRemoteTable() {
@@ -245,9 +283,9 @@ void UnicastMacRemoteTable::OvsdbNotify(OvsdbClientIdl::Op op,
     if (logical_switch == NULL)
         return;
     const char *dest_ip = ovsdb_wrapper_ucast_mac_remote_dst_ip(row);
-    UnicastMacRemoteEntry key(this, mac, logical_switch);
+    UnicastMacRemoteEntry key(this, mac);
     if (op == OvsdbClientIdl::OVSDB_DEL) {
-        NotifyDeleteOvsdb((OvsdbDBEntry*)&key);
+        NotifyDeleteOvsdb((OvsdbDBEntry*)&key, row);
         if (dest_ip)
             key.dest_ip_ = std::string(dest_ip);
         key.SendTrace(UnicastMacRemoteEntry::DEL_ACK);
@@ -288,6 +326,16 @@ KSyncDBObject::DBFilterResp UnicastMacRemoteTable::DBEntryFilter(
     if (client_idl()->deleted()) {
         return DBFilterIgnore;
     }
+
+    const BridgeRouteEntry *entry =
+        static_cast<const BridgeRouteEntry *>(db_entry);
+    if (entry->vrf()->IsDeleted()) {
+        // if notification comes for a entry with deleted vrf,
+        // trigger delete since we donot resue same vrf object
+        // so this entry has to be deleted eventually.
+        return DBFilterDelete;
+    }
+
     return DBFilterAccept;
 }
 
@@ -304,9 +352,16 @@ void UnicastMacRemoteTable::Unregister() {
 
 void UnicastMacRemoteTable::EmptyTable() {
     OvsdbDBObject::EmptyTable();
-    if (deleted_ == true) {
+    // unregister the object if emptytable is called with
+    // object being scheduled for delete, or if managed
+    // delete is triggered on the object.
+    if (delete_scheduled() || deleted_ == true) {
         Unregister();
     }
+}
+
+const std::string &UnicastMacRemoteTable::logical_switch_name() const {
+    return logical_switch_name_;
 }
 
 void UnicastMacRemoteTable::set_deleted(bool deleted) {
@@ -366,9 +421,9 @@ void VrfOvsdbObject::OvsdbRouteNotify(OvsdbClientIdl::Op op,
     }
     const char *dest_ip = ovsdb_wrapper_ucast_mac_remote_dst_ip(row);
     UnicastMacRemoteTable *table= it->second->l2_table;
-    UnicastMacRemoteEntry key(table, mac, logical_switch);
+    UnicastMacRemoteEntry key(table, mac);
     if (op == OvsdbClientIdl::OVSDB_DEL) {
-        table->NotifyDeleteOvsdb((OvsdbDBEntry*)&key);
+        table->NotifyDeleteOvsdb((OvsdbDBEntry*)&key, row);
         if (dest_ip)
             key.dest_ip_ = std::string(dest_ip);
         key.SendTrace(UnicastMacRemoteEntry::DEL_ACK);
@@ -415,22 +470,22 @@ void VrfOvsdbObject::VrfNotify(DBTablePartBase *partition, DBEntryBase *e) {
     VrfEntry *vrf = static_cast<VrfEntry *>(e);
     VrfState *state = static_cast<VrfState *>
         (vrf->GetState(partition->parent(), vrf_listener_id_));
-    if (deleted_ && state) {
-        // Vrf Object is marked for delete trigger delete for l2 table
-        // object and cleanup vrf state.
-        state->l2_table->DeleteTable();
-    }
 
-    if (deleted_ || vrf->IsDeleted()) {
+    // Trigger delete of route table in following cases:
+    //  - VrfOvsdbObject is scheduled for deletion.
+    //  - VrfEntry is deleted
+    //  - VRF-VN link not available
+    if (deleted_ || vrf->IsDeleted() || (vrf->vn() == NULL)) {
         if (state) {
+            // Vrf Object is marked for delete trigger delete for l2 table
+            // object and cleanup vrf state.
+            state->l2_table->DeleteTable();
+
+            // Clear DB state
             logical_switch_map_.erase(state->logical_switch_name_);
             vrf->ClearState(partition->parent(), vrf_listener_id_);
             delete state;
         }
-        return;
-    }
-
-    if (vrf->vn() == NULL) {
         return;
     }
 
@@ -443,7 +498,11 @@ void VrfOvsdbObject::VrfNotify(DBTablePartBase *partition, DBEntryBase *e) {
 
         /* We are interested only in L2 Routes */
         state->l2_table = new UnicastMacRemoteTable(client_idl_.get(),
-                vrf->GetBridgeRouteTable());
+                vrf->GetBridgeRouteTable(), state->logical_switch_name_);
+    } else {
+        // verify that logical switch name doesnot change
+        assert(state->logical_switch_name_ ==
+               UuidToString(vrf->vn()->GetUuid()));
     }
 }
 

@@ -7,23 +7,13 @@
  *
  */
 
-struct AlarmElement {
-    1: string  rule
-    2: string  value
+struct VrouterAgent {
+    1: string name (key="ObjectVRouter")
+    2: optional string build_info
+    3: optional bool deleted
+    4: optional string state
 }
 
-struct AlarmInfo {
-    1: string  type
-    2: list<AlarmElement>  description
-    3: bool  ack
-}
-
-struct AlarmData {
-    1: string  name (key="ObjectCollectorInfo")
-    2: optional bool  deleted
-    3: optional list<AlarmInfo>  alarms
-}
-
-alarm sandesh Alarm {
-    1: AlarmData  data
+uve sandesh VrouterAgentTest {
+    1: VrouterAgent data
 }

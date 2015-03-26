@@ -77,19 +77,8 @@ bool CollectorCPULogger(const string & hostname) {
     state.set_collector_mem_virt(cpu_load_info.get_meminfo().get_virt());
     ModuleCpuStateTrace::Send(state);
 
-    AnalyticsCpuState  astate;
-    astate.set_name(hostname);
-
-    ProcessCpuInfo ainfo;
-    ainfo.set_module_id(Sandesh::module());
-    ainfo.set_inst_id(Sandesh::instance_id());
-    ainfo.set_cpu_share(cpu_load_info.get_cpu_share());
-    ainfo.set_mem_virt(cpu_load_info.get_meminfo().get_virt());
-    vector<ProcessCpuInfo> aciv;
-    aciv.push_back(ainfo);
-    astate.set_cpu_info(aciv);
-    AnalyticsCpuStateTrace::Send(astate);
-
+    SendCpuInfoStat<AnalyticsCpuStateTrace, AnalyticsCpuState>(hostname,
+        cpu_load_info);
     return true;
 }
 
@@ -376,6 +365,9 @@ int main(int argc, char *argv[])
         SetLoggingDisabled(true);
     }
 
+    // Get local ip address
+    Collector::SetSelfIp(options.host_ip());
+
     //Publish services to Discovery Service Servee
     DiscoveryServiceClient *ds_client = NULL;
     tcp::endpoint dss_ep;
@@ -387,8 +379,6 @@ int main(int argc, char *argv[])
         ds_client = new DiscoveryServiceClient(a_evm, dss_ep, client_name);
         ds_client->Init();
 
-        // Get local ip address
-        Collector::SetSelfIp(options.host_ip());
         string service_name = g_vns_constants.COLLECTOR_DISCOVERY_SERVICE_NAME;
         stringstream pub_ss;
         pub_ss << "<" << service_name << "><ip-address>" << options.host_ip() <<

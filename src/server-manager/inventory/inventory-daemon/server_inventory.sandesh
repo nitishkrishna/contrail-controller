@@ -25,6 +25,7 @@ struct memory_info {
         3: u32 num_of_dimms
         4: u64 dimm_size_mb
         5: double swap_size_mb
+        6: u64 total_mem_mb
 }
 
 struct cpu_info {

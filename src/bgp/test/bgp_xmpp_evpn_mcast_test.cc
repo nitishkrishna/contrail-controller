@@ -142,18 +142,23 @@ protected:
         return BroadcastMac();
     }
 
-    string GetVrouterNexthopAddress(test::NetworkAgentMock *vrouter, int idx) {
-        char nh_addr[32];
-        if (IsTsn(vrouter)) {
-            snprintf(nh_addr, sizeof(nh_addr), "192.168.1.4%d", idx);
-        } else if (IsTor(vrouter)) {
-            snprintf(nh_addr, sizeof(nh_addr), "192.168.1.3%d", idx);
-        } else if (IsMx(vrouter)) {
-            snprintf(nh_addr, sizeof(nh_addr), "192.168.1.2%d", idx);
-        } else {
-            snprintf(nh_addr, sizeof(nh_addr), "192.168.1.1%d", idx);
-        }
-        return nh_addr;
+    string TorBroadcastMac(test::NetworkAgentMock *tor) {
+        string tor_addr = GetVrouterNexthopAddress(tor);
+        return integerToString(tag_) + "-" +
+            string("ff:ff:ff:ff:ff:ff,") + tor_addr + "/32";
+    }
+
+    string TorBroadcastMacXmppId(test::NetworkAgentMock *tor) {
+        string tor_addr = GetVrouterNexthopAddress(tor);
+        if (tag_ == 0)
+            return string("ff:ff:ff:ff:ff:ff,") + tor_addr + "/32";
+        return TorBroadcastMac(tor);
+    }
+
+    string GetVrouterNexthopAddress(test::NetworkAgentMock *vrouter) {
+        VrouterToNhAddrMap::const_iterator loc = vrouter_map_.find(vrouter);
+        assert(loc != vrouter_map_.end());
+        return loc->second;
     }
 
     bool VerifyVrouterInOListCommon(test::NetworkAgentMock *vrouter, int idx,
@@ -164,7 +169,7 @@ protected:
             return false;
 
         bool found = false;
-        string nh_addr = GetVrouterNexthopAddress(vrouter, idx);
+        string nh_addr = GetVrouterNexthopAddress(vrouter);
         BOOST_FOREACH(const autogen::EnetNextHopType &nh, olist.next_hop) {
             if (nh.address == nh_addr) {
                 EXPECT_FALSE(found);
@@ -194,7 +199,7 @@ protected:
         if (olist.next_hop.size() == 0)
             return false;
 
-        string nh_addr = GetVrouterNexthopAddress(vrouter, idx);
+        string nh_addr = GetVrouterNexthopAddress(vrouter);
         BOOST_FOREACH(const autogen::EnetNextHopType &nh, olist.next_hop) {
             if (nh.address == nh_addr)
                 return false;
@@ -217,8 +222,13 @@ protected:
         bool odd_agents_tors, bool even_agents_tors, bool include_tors) {
         task_util::TaskSchedulerLock lock;
 
-        const autogen::EnetItemType *rt =
-            vrouter->EnetRouteLookup("blue", BroadcastMacXmppId());
+        string key;
+        if (IsTor(vrouter)) {
+            key = TorBroadcastMacXmppId(vrouter);
+        } else {
+            key = BroadcastMacXmppId();
+        }
+        const autogen::EnetItemType *rt = vrouter->EnetRouteLookup("blue", key);
         if (rt == NULL)
             return false;
 
@@ -305,10 +315,8 @@ protected:
 
     void CreateAgents() {
         for (int idx = 0; idx < kAgentCount; ++idx) {
-            char name[32];
-            snprintf(name, sizeof(name), "agent-%d", idx);
-            char local_addr[32];
-            snprintf(local_addr, sizeof(local_addr), "127.0.0.1%d", idx);
+            string name = string("agent-") + integerToString(idx);
+            string local_addr = string("127.0.0.1") + integerToString(idx);
             string remote_addr;
             int port;
             if (single_server_) {
@@ -322,6 +330,8 @@ protected:
                 &evm_, name, port, local_addr, remote_addr);
             agents_.push_back(agent);
             agent_set_.insert(agent);
+            string nh_addr = string("192.168.1.1") + integerToString(idx);
+            vrouter_map_.insert(make_pair(agent, nh_addr));
             TASK_UTIL_EXPECT_TRUE(agent->IsEstablished());
         }
     }
@@ -353,8 +363,7 @@ protected:
     void AddAgentsBroadcastMacRouteCommon(bool odd, bool even) {
         int idx = 0;
         BOOST_FOREACH(test::NetworkAgentMock *agent, agents_) {
-            char nh_addr[32];
-            snprintf(nh_addr, sizeof(nh_addr), "192.168.1.1%d", idx);
+            string nh_addr = string("192.168.1.1") + integerToString(idx);
             if ((odd && idx % 2 != 0) || (even && idx % 2 == 0)) {
                 agent->AddEnetRoute("blue", BroadcastMac(), nh_addr);
                 task_util::WaitForIdle();
@@ -440,10 +449,8 @@ protected:
 
     void CreateMxs() {
         for (int idx = 0; idx < kMxCount; ++idx) {
-            char name[32];
-            snprintf(name, sizeof(name), "mx-%d", idx);
-            char local_addr[32];
-            snprintf(local_addr, sizeof(local_addr), "127.0.0.2%d", idx);
+            string name = string("mx-") + integerToString(idx);
+            string local_addr = string("127.0.0.2") + integerToString(idx);
             string remote_addr;
             int port;
             if (single_server_) {
@@ -457,6 +464,8 @@ protected:
                 &evm_, name, port, local_addr, remote_addr);
             mxs_.push_back(mx);
             mx_set_.insert(mx);
+            string nh_addr = string("192.168.1.2") + integerToString(idx);
+            vrouter_map_.insert(make_pair(mx, nh_addr));
             TASK_UTIL_EXPECT_TRUE(mx->IsEstablished());
         }
     }
@@ -488,8 +497,7 @@ protected:
     void AddMxsBroadcastMacRouteCommon(bool odd, bool even) {
         int idx = 0;
         BOOST_FOREACH(test::NetworkAgentMock *mx, mxs_) {
-            char nh_addr[32];
-            snprintf(nh_addr, sizeof(nh_addr), "192.168.1.2%d", idx);
+            string nh_addr = string("192.168.1.2") + integerToString(idx);
             if ((odd && idx % 2 != 0) || (even && idx % 2 == 0)) {
                 mx->AddEnetRoute("blue", BroadcastMac(), nh_addr, &mx_params_);
                 task_util::WaitForIdle();
@@ -566,10 +574,7 @@ protected:
     void CreateTors() {
         EXPECT_NE(0, tsns_.size());
         for (int idx = 0; idx < kTorCount; ++idx) {
-            char name[32];
-            snprintf(name, sizeof(name), "tor-%d", idx);
-            char local_addr[32];
-            snprintf(local_addr, sizeof(local_addr), "127.0.0.3%d", idx);
+            string name = string("tor-") + integerToString(idx);
             string remote_addr;
             int port;
             if (single_server_) {
@@ -580,7 +585,7 @@ protected:
                 port = (idx % 2 == 0) ? xs_x_->GetPort() : xs_y_->GetPort();
             }
             test::NetworkAgentMock *tor = new test::NetworkAgentMock(
-                &evm_, name, port, local_addr, remote_addr);
+                &evm_, name, port, "127.0.0.30", remote_addr);
             tors_.push_back(tor);
             tor_set_.insert(tor);
             TASK_UTIL_EXPECT_TRUE(tor->IsEstablished());
@@ -589,6 +594,8 @@ protected:
             int tsn_idx = idx / tors_per_tsn;
             string tsn_address = tsn_address_list_[tsn_idx];
             tor_replicator_address_list_.push_back(tsn_address);
+            string nh_addr = string("192.168.1.3") + integerToString(idx);
+            vrouter_map_.insert(make_pair(tor, nh_addr));
         }
     }
 
@@ -619,12 +626,12 @@ protected:
     void AddTorsBroadcastMacRouteCommon(bool odd, bool even) {
         int idx = 0;
         BOOST_FOREACH(test::NetworkAgentMock *tor, tors_) {
-            char nh_addr[32];
-            snprintf(nh_addr, sizeof(nh_addr), "192.168.1.3%d", idx);
+            string nh_addr = string("192.168.1.3") + integerToString(idx);
             test::RouteParams tor_params;
             tor_params.replicator_address = tor_replicator_address_list_[idx];
             if ((odd && idx % 2 != 0) || (even && idx % 2 == 0)) {
-                tor->AddEnetRoute("blue", BroadcastMac(), nh_addr, &tor_params);
+                tor->AddEnetRoute(
+                    "blue", TorBroadcastMac(tor), nh_addr, &tor_params);
                 task_util::WaitForIdle();
             }
             idx++;
@@ -647,7 +654,7 @@ protected:
         int idx = 0;
         BOOST_FOREACH(test::NetworkAgentMock *tor, tors_) {
             if ((odd && idx % 2 != 0) || (even && idx % 2 == 0)) {
-                tor->DeleteEnetRoute("blue", BroadcastMac());
+                tor->DeleteEnetRoute("blue", TorBroadcastMac(tor));
                 task_util::WaitForIdle();
             }
             idx++;
@@ -668,10 +675,8 @@ protected:
 
     void CreateTsns() {
         for (int idx = 0; idx < kTsnCount; ++idx) {
-            char name[32];
-            snprintf(name, sizeof(name), "tsn-%d", idx);
-            char local_addr[32];
-            snprintf(local_addr, sizeof(local_addr), "127.0.0.4%d", idx);
+            string name = string("tsn-") + integerToString(idx);
+            string local_addr = string("127.0.0.4") + integerToString(idx);
             string remote_addr;
             int port;
             if (single_server_) {
@@ -686,9 +691,9 @@ protected:
             tsns_.push_back(tsn);
             tsn_set_.insert(tsn);
             TASK_UTIL_EXPECT_TRUE(tsn->IsEstablished());
-            char nh_addr[32];
-            snprintf(nh_addr, sizeof(nh_addr), "192.168.1.4%d", idx);
-            tsn_address_list_.push_back(string(nh_addr));
+            string nh_addr = string("192.168.1.4") + integerToString(idx);
+            tsn_address_list_.push_back(nh_addr);
+            vrouter_map_.insert(make_pair(tsn, nh_addr));
         }
     }
 
@@ -728,8 +733,7 @@ protected:
     void AddTsnsBroadcastMacRouteCommon(bool odd, bool even) {
         int idx = 0;
         BOOST_FOREACH(test::NetworkAgentMock *tsn, tsns_) {
-            char nh_addr[32];
-            snprintf(nh_addr, sizeof(nh_addr), "192.168.1.4%d", idx);
+            string nh_addr = string("192.168.1.4") + integerToString(idx);
             if ((odd && idx % 2 != 0) || (even && idx % 2 == 0)) {
                 tsn->AddEnetRoute("blue", BroadcastMac(), nh_addr,
                     &tsn_params_);
@@ -792,6 +796,7 @@ protected:
     }
 
     typedef set<test::NetworkAgentMock *> VrouterSet;
+    typedef map<test::NetworkAgentMock *, string> VrouterToNhAddrMap;
 
     EventManager evm_;
     ServerThread thread_;
@@ -809,6 +814,7 @@ protected:
     VrouterSet mx_set_;
     VrouterSet tor_set_;
     VrouterSet tsn_set_;
+    VrouterToNhAddrMap vrouter_map_;
     vector<string> tor_replicator_address_list_;
     vector<string> tsn_address_list_;
     test::RouteParams mx_params_;

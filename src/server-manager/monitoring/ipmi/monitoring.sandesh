@@ -22,8 +22,10 @@ struct IpmiChassis_status_info {
 
 struct Disk {
     1: string disk_name;
-    2: u64 read_MB;
-    3: u64 write_MB;
+    2: optional u64 read_bytes;
+    3: optional write_bytes;
+    4: optional total_read_bytes;
+    5: optional u64 total_write_bytes;
 }
 
 struct network_info {
@@ -32,6 +34,10 @@ struct network_info {
     3: optional u64 rx_bytes
     4: optional u64 rx_packets
     5: optional string interface_name
+    6: optional u64 total_tx_bytes
+    7: optional u64 total_tx_packets
+    8: optional u64 total_rx_bytes
+    9: optional u64 total_rx_packets
 }
 
 struct resource_info {

@@ -46,10 +46,34 @@ sys.path.insert(0, '../../../../build/production/api-lib/vnc_api')
 sys.path.insert(0, '../../../../distro/openstack/')
 sys.path.append('../../../../build/production/config/api-server/vnc_cfg_api_server')
 
-import vnc_cfg_api_server
-if not hasattr(vnc_cfg_api_server, 'main'):
-    from vnc_cfg_api_server import vnc_cfg_api_server
+try:
+    import vnc_cfg_api_server
+    if not hasattr(vnc_cfg_api_server, 'main'):
+        from vnc_cfg_api_server import vnc_cfg_api_server
+except ImportError:
+    vnc_cfg_api_server = 'vnc_cfg_api_server could not be imported'
 
+try:
+    import to_bgp
+except ImportError:
+    try:
+        from schema_transformer import to_bgp
+    except ImportError:
+        to_bgp = 'to_bgp could not be imported'
+
+try:
+    import svc_monitor
+    if not hasattr(svc_monitor, 'main'):
+        from svc_monitor import svc_monitor
+except ImportError:
+    svc_monitor = 'svc_monitor could not be imported'
+
+try:
+    import device_manager
+    if not hasattr(device_manager, 'main'):
+        from device_manager import device_manager
+except ImportError:
+    device_manager = 'device_manager could not be imported'
 
 def generate_conf_file_contents(conf_sections):
     cfg_parser = ConfigParser.RawConfigParser()
@@ -131,10 +155,6 @@ def launch_api_server(listen_ip, listen_port, http_server_port, admin_port,
 #end launch_api_server
 
 def launch_svc_monitor(api_server_ip, api_server_port):
-    import svc_monitor
-    if not hasattr(svc_monitor, 'main'):
-        from svc_monitor import svc_monitor
-
     args_str = ""
     args_str = args_str + "--api_server_ip %s " % (api_server_ip)
     args_str = args_str + "--api_server_port %s " % (api_server_port)
@@ -159,10 +179,6 @@ def kill_schema_transformer(glet):
     to_bgp.transformer.reset()
 
 def launch_schema_transformer(api_server_ip, api_server_port):
-    try:
-        import to_bgp
-    except ImportError:
-        from schema_transformer import to_bgp
     args_str = ""
     args_str = args_str + "--api_server_ip %s " % (api_server_ip)
     args_str = args_str + "--api_server_port %s " % (api_server_port)
@@ -175,9 +191,6 @@ def launch_schema_transformer(api_server_ip, api_server_port):
 # end launch_schema_transformer
 
 def launch_device_manager(api_server_ip, api_server_port):
-    import device_manager
-    if not hasattr(device_manager, 'main'):
-        from device_manager import device_manager
     args_str = ""
     args_str = args_str + "--api_server_ip %s " % (api_server_ip)
     args_str = args_str + "--api_server_port %s " % (api_server_port)

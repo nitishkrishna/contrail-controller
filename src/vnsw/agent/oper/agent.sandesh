@@ -86,6 +86,7 @@ struct ItfSandeshData {
    42: optional string vrf_assign_acl_uuid (link="AclReq"); //VRF assign acl
    43: optional string vmi_type;
    44: string transport;
+   45: string logical_interface_uuid;
 }
 
 struct VnIpamData {
@@ -960,6 +961,16 @@ struct RouteInfo {
 
 traceobject sandesh OperInterface {
     1: InterfaceInfo intf_info;
+}
+
+struct OperConfigInfo {
+    1: string name;
+    2: string uuid;
+    3: string message;
+}
+
+traceobject sandesh OperConfig {
+    1: OperConfigInfo info;
 }
 
 traceobject sandesh OperRoute {

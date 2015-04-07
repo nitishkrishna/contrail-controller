@@ -54,8 +54,8 @@ public:
         return vrf_tables_;
     }
 
-    void ProcessConfig(BgpServer *server);
-    void UpdateConfig(BgpServer *server, const BgpInstanceConfig *config);
+    void ProcessConfig();
+    void UpdateConfig(const BgpInstanceConfig *config);
     void ClearConfig();
 
     static std::string GetTableName(std::string instance_name,
@@ -86,7 +86,7 @@ public:
     const LifetimeActor *deleter() const;
     bool deleted() const;
 
-    void set_index(BgpServer *, int index);
+    void set_index(int index);
     int index() const { return index_; }
     bool IsDefaultRoutingInstance() const {
         return is_default_;
@@ -104,8 +104,8 @@ public:
     const RoutingInstanceMgr *manager() const { return mgr_; }
     RoutingInstanceInfo GetDataCollection(const char *operation);
 
-    BgpServer *server();
-    const BgpServer *server() const;
+    BgpServer *server() { return server_; }
+    const BgpServer *server() const { return server_; };
 
     // Remove import and export route target
     // and Leave corresponding RtGroup
@@ -117,12 +117,17 @@ public:
 private:
     class DeleteActor;
 
+    void AddRouteTarget(bool import, std::vector<std::string> *change_list,
+        RouteTargetList::const_iterator it);
+    void DeleteRouteTarget(bool import, std::vector<std::string> *change_list,
+        RouteTargetList::iterator it);
+
     // Cleanup all the state prior to deletion.
     void Shutdown();
 
-    BgpTable *VpnTableCreate(BgpServer *server, Address::Family vpn_family);
-    BgpTable *RTargetTableCreate(BgpServer *server);
-    BgpTable *VrfTableCreate(BgpServer *server, Address::Family vrf_family,
+    BgpTable *VpnTableCreate(Address::Family vpn_family);
+    BgpTable *RTargetTableCreate();
+    BgpTable *VrfTableCreate(Address::Family vrf_family,
                              Address::Family vpn_family);
     void ClearFamilyRouteTarget(Address::Family vrf_family,
                                 Address::Family vpn_family);
@@ -133,6 +138,7 @@ private:
     RouteTableList vrf_tables_;
     RouteTargetList import_;
     RouteTargetList export_;
+    BgpServer *server_;
     RoutingInstanceMgr *mgr_;
     const BgpInstanceConfig *config_;
     bool is_default_;

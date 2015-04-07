@@ -23,8 +23,10 @@ extern "C" {
 #include <vlan_port_binding_ovsdb.h>
 #include <unicast_mac_local_ovsdb.h>
 #include <unicast_mac_remote_ovsdb.h>
+#include <multicast_mac_local_ovsdb.h>
 #include <vm_interface_ksync.h>
 #include <vn_ovsdb.h>
+#include <vrf_ovsdb.h>
 
 SandeshTraceBufferPtr OvsdbTraceBuf(SandeshTraceBufferCreate("Ovsdb", 5000));
 SandeshTraceBufferPtr OvsdbPktTraceBuf(SandeshTraceBufferCreate("Ovsdb Pkt", 5000));
@@ -43,6 +45,7 @@ using OVSDB::PhysicalPortTable;
 using OVSDB::PhysicalLocatorTable;
 using OVSDB::VlanPortBindingTable;
 using OVSDB::UnicastMacLocalOvsdb;
+using OVSDB::MulticastMacLocalOvsdb;
 using OVSDB::VrfOvsdbObject;
 using OVSDB::VnOvsdbObject;
 
@@ -126,7 +129,7 @@ OvsdbClientIdl::OvsdbClientIdl(OvsdbClientSession *session, Agent *agent,
     for (int i = 0; i < OVSDB_TYPE_COUNT; i++) {
         callback_[i] = NULL;
     }
-    route_peer_.reset(manager->Allocate(IpAddress()));
+    route_peer_.reset(manager->Allocate(session_->remote_ip()));
     vm_interface_table_.reset(new VMInterfaceKSyncObject(this,
                 (DBTable *)agent->interface_table()));
     physical_switch_table_.reset(new PhysicalSwitchTable(this));
@@ -138,6 +141,8 @@ OvsdbClientIdl::OvsdbClientIdl(OvsdbClientSession *session, Agent *agent,
                 (DBTable *)agent->interface_table()));
     unicast_mac_local_ovsdb_.reset(new UnicastMacLocalOvsdb(this,
                 route_peer()));
+    multicast_mac_local_ovsdb_.reset(new MulticastMacLocalOvsdb(this,
+                                                                route_peer()));
     vrf_ovsdb_.reset(new VrfOvsdbObject(this, (DBTable *)agent->vrf_table()));
     vn_ovsdb_.reset(new VnOvsdbObject(this, (DBTable *)agent->vn_table()));
 }
@@ -339,6 +344,10 @@ UnicastMacLocalOvsdb *OvsdbClientIdl::unicast_mac_local_ovsdb() {
     return unicast_mac_local_ovsdb_.get();
 }
 
+MulticastMacLocalOvsdb *OvsdbClientIdl::multicast_mac_local_ovsdb() {
+    return multicast_mac_local_ovsdb_.get();
+}
+
 VrfOvsdbObject *OvsdbClientIdl::vrf_ovsdb() {
     return vrf_ovsdb_.get();
 }
@@ -398,6 +407,7 @@ void OvsdbClientIdl::TriggerDeletion() {
     physical_locator_table_->DeleteTable();
     vlan_port_table_->DeleteTable();
     unicast_mac_local_ovsdb_->DeleteTable();
+    multicast_mac_local_ovsdb_->DeleteTable();
     vn_ovsdb_->DeleteTable();
 
     // trigger delete table for vrf table, which internally handles

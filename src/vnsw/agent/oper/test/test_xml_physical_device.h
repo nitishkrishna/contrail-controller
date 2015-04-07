@@ -76,6 +76,7 @@ public:
 private:
     std::string port_name_;
     std::string vmi_name_;
+    uint16_t vlan_;
 };
 
 /////////////////////////////////////////////////////////////////////////////
@@ -170,6 +171,8 @@ public:
     virtual bool ReadXml();
     virtual bool Validate();
     virtual const std::string ToString();
+    virtual uint32_t wait_count() const { return 1000; }
+    virtual uint32_t sleep_time() const { return 1000; }
 private:
     std::string test_name_;
 };

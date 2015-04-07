@@ -54,14 +54,19 @@ class LoadbalancerPoolSM(DBBase):
     # end delete
 
     def add(self):
-        self.last_sent = self._manager.loadbalancer_agent.loadbalancer_pool_add(self)
+        self.last_sent = \
+                self._manager.loadbalancer_agent.loadbalancer_pool_add(self)
         if len(self.members):
             for member in self.members:
                 member_obj = LoadbalancerMemberSM.get(member)
-                member_obj.last_sent = self._manager.loadbalancer_agent.loadbalancer_member_add(member_obj)
+                if member_obj:
+                    member_obj.last_sent = \
+                            self._manager.loadbalancer_agent.loadbalancer_member_add(member_obj)
         if self.virtual_ip:
             vip_obj = VirtualIpSM.get(self.virtual_ip)
-            vip_obj.last_sent = self._manager.loadbalancer_agent.virtual_ip_add(vip_obj)
+            if vip_obj:
+                vip_obj.last_sent = \
+                        self._manager.loadbalancer_agent.virtual_ip_add(vip_obj)
     # end add
 # end class LoadbalancerPoolSM
 
@@ -601,6 +606,8 @@ class ProjectSM(DBBase):
 
     def __init__(self, uuid, obj_dict=None):
         self.uuid = uuid
+        self.service_instances = set()
+        self.virtual_networks = set()
         self.update(obj_dict)
     # end __init__
 
@@ -609,6 +616,8 @@ class ProjectSM(DBBase):
             obj = self.read_obj(self.uuid)
         self.name = obj['fq_name'][-1]
         self.fq_name = obj['fq_name']
+        self.update_multiple_refs('service_instance', obj)
+        self.update_multiple_refs('virtual_network', obj)
     # end update
 
     @classmethod
@@ -616,6 +625,8 @@ class ProjectSM(DBBase):
         if uuid not in cls._dict:
             return
         obj = cls._dict[uuid]
+        self.update_multiple_refs('service_instance', {})
+        self.update_multiple_refs('virtual_network', {})
         del cls._dict[uuid]
     # end delete
 # end ProjectSM

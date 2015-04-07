@@ -214,6 +214,34 @@ ovsdb_wrapper_physical_switch_tunnel_ip(struct ovsdb_idl_row *row)
     return ps->tunnel_ips[0];
 }
 
+size_t
+ovsdb_wrapper_physical_switch_ports_count(struct ovsdb_idl_row *row)
+{
+    struct vteprec_physical_switch *ps =
+        row ? CONTAINER_OF(row, struct vteprec_physical_switch, header_) : NULL;
+    if (ps == NULL) {
+        return 0;
+    }
+    return ps->n_ports;
+}
+
+void
+ovsdb_wrapper_physical_switch_ports(struct ovsdb_idl_row *row,
+                                    struct ovsdb_idl_row **ports, size_t n)
+{
+    struct vteprec_physical_switch *ps =
+        row ? CONTAINER_OF(row, struct vteprec_physical_switch, header_) : NULL;
+    if (ps == NULL) {
+        return;
+    }
+    size_t count = (n > ps->n_ports) ? ps->n_ports : n;
+    size_t i = 0;
+    while (i < count) {
+        ports[i] = &(ps->ports[i]->header_);
+        i++;
+    }
+}
+
 /* logical switch */
 char *
 ovsdb_wrapper_logical_switch_name(struct ovsdb_idl_row *row)
@@ -575,12 +603,21 @@ ovsdb_wrapper_mcast_mac_remote_logical_switch(struct ovsdb_idl_row *row)
     return NULL;
 }
 
-struct ovsdb_idl_row *
-ovsdb_wrapper_mcast_mac_remote_physical_locator_set(struct ovsdb_idl_row *row)
+char *
+ovsdb_wrapper_mcast_mac_remote_dst_ip(struct ovsdb_idl_row *row)
 {
     struct vteprec_mcast_macs_remote *mcast =
         row ? CONTAINER_OF(row, struct vteprec_mcast_macs_remote, header_) : NULL;
-    return &(mcast->locator_set->header_);
+
+    if (mcast == NULL || mcast->locator_set == NULL)
+        return "";
+
+    size_t n_locators = mcast->locator_set->n_locators;
+    if (n_locators == 0)
+        return "";
+
+    // Pick up first locator
+    return mcast->locator_set->locators[0]->dst_ip;
 }
 
 /* logical binding stats */

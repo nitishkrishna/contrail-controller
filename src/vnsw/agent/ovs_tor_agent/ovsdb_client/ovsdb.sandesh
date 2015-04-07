@@ -78,8 +78,9 @@ struct OvsdbPhysicalPortVlanInfo {
 
 struct OvsdbPhysicalPortEntry {
     1: string state;
-    2: string name;
-    3: list<OvsdbPhysicalPortVlanInfo> vlans;
+    2: string switch_name;
+    3: string name;
+    4: list<OvsdbPhysicalPortVlanInfo> vlans;
 }
 
 response sandesh OvsdbPhysicalPortResp {
@@ -100,6 +101,7 @@ struct OvsdbLogicalSwitchEntry {
     2: string name;
     3: string physical_switch;
     4: i64 vxlan_id;
+    5: string tor_service_node;
 }
 
 response sandesh OvsdbLogicalSwitchResp {
@@ -194,3 +196,22 @@ traceobject sandesh OvsdbUnicastMacRemote {
     1: SandeshUnicastMacRemoteInfo ucast_remote;
 }
 
+/****************************************************************************
+  Sandesh definitions for Multicast Mac Local.
+ ****************************************************************************/
+
+struct OvsdbMulticastMacLocalEntry {
+    1: string state;
+    2: string mac;
+    3: string logical_switch;
+    4: i64 vxlan_id;
+}
+
+response sandesh OvsdbMulticastMacLocalResp {
+    1: list<OvsdbMulticastMacLocalEntry> macs;
+}
+
+request sandesh OvsdbMulticastMacLocalReq {
+    1: string session_remote_ip;
+    2: u16 session_remote_port;
+}

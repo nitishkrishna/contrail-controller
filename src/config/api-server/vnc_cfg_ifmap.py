@@ -363,7 +363,11 @@ class VncIfmapClient(VncIfmapClientGen):
 
                 # this will block till connection is re-established
                 self._reset_cache_and_accumulator()
+                self._db_client_mgr._api_svr_mgr.un_publish(
+                    un_publish_api=False, un_publish_ifmap=True)
                 self._init_conn()
+                self._db_client_mgr._api_svr_mgr.publish(
+                    publish_api=False, publish_ifmap=True)
                 self._publish_config_root()
                 self._db_client_mgr.db_resync()
                 return
@@ -863,15 +867,19 @@ class VncServerCassandraClient(VncCassandraClient):
 
     def useragent_kv_retrieve(self, key):
         if key:
-            try:
-                columns = self._useragent_kv_cf.get(key)
-            except pycassa.NotFoundException:
-                raise NoUserAgentKey
-            return columns['value']
+            if isinstance(key, list):
+                rows = self._useragent_kv_cf.multiget(key)
+                return [rows[row].get('value') for row in rows]
+            else:
+                try:
+                    columns = self._useragent_kv_cf.get(key)
+                except pycassa.NotFoundException:
+                    raise NoUserAgentKey
+                return columns.get('value')
         else:  # no key specified, return entire contents
             kv_list = []
             for ua_key, ua_cols in self._useragent_kv_cf.get_range():
-                kv_list.append({'key': ua_key, 'value': ua_cols['value']})
+                kv_list.append({'key': ua_key, 'value': ua_cols.get('value')})
             return kv_list
     # end useragent_kv_retrieve
 

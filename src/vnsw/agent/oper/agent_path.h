@@ -197,6 +197,17 @@ public:
     //Flood DHCP
     bool flood_dhcp() const {return flood_dhcp_;}
     void set_flood_dhcp(bool flood_dhcp) const {flood_dhcp_ = flood_dhcp;}
+    MacAddress arp_mac() const {return arp_mac_;}
+    void set_arp_mac(const MacAddress &mac) {
+        arp_mac_ = mac;
+    }
+    const Interface* arp_interface() const {return arp_interface_.get();}
+    void set_arp_interface(const Interface *intf) {
+        arp_interface_ = intf;
+    }
+
+    bool arp_valid() const { return arp_valid_;}
+    void set_arp_valid(bool valid) { arp_valid_ = valid;}
 
 private:
     const Peer *peer_;
@@ -255,6 +266,12 @@ private:
     IpAddress subnet_gw_ip_;
     // should vrouter flood the DHCP request coming from this source route
     mutable bool flood_dhcp_;
+    //Mac address of ARP NH, used to notify change
+    //to routes dependent on mac change, or ageout of ARP
+    MacAddress arp_mac_;
+    //Interface on which ARP would be resolved
+    InterfaceConstRef arp_interface_;
+    bool arp_valid_;
     DISALLOW_COPY_AND_ASSIGN(AgentPath);
 };
 
@@ -485,9 +502,10 @@ private:
 class MulticastRoute : public AgentRouteData {
 public:
     MulticastRoute(const string &vn_name, uint32_t label, int vxlan_id,
-                   uint32_t tunnel_type, DBRequest &nh_req):
+                   uint32_t tunnel_type, DBRequest &nh_req,
+                   COMPOSITETYPE comp_nh_type):
     AgentRouteData(true), vn_name_(vn_name), label_(label), vxlan_id_(vxlan_id), 
-    tunnel_type_(tunnel_type) {
+    tunnel_type_(tunnel_type), comp_nh_type_(comp_nh_type) {
         composite_nh_req_.Swap(&nh_req);
     }
     virtual ~MulticastRoute() { }
@@ -495,6 +513,7 @@ public:
                                const AgentRoute *rt);
     virtual std::string ToString() const {return "multicast";}
     uint32_t vxlan_id() const {return vxlan_id_;}
+    COMPOSITETYPE comp_nh_type() const {return comp_nh_type_;}
     static bool CopyPathParameters(Agent *agent,
                                    AgentPath *path,
                                    const std::string &dest_vn_name,
@@ -510,6 +529,7 @@ private:
     uint32_t vxlan_id_;
     uint32_t tunnel_type_;
     DBRequest composite_nh_req_;
+    COMPOSITETYPE comp_nh_type_;
     DISALLOW_COPY_AND_ASSIGN(MulticastRoute);
 };
 

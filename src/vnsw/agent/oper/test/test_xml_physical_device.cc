@@ -213,7 +213,7 @@ string AgentUtXmlRemotePhysicalInterface::NodeType() {
 AgentUtXmlLogicalInterface::AgentUtXmlLogicalInterface
     (const string &name, const uuid &id, const xml_node &node,
      AgentUtXmlTestCase *test_case) :
-    AgentUtXmlConfig(name, id, node, test_case) {
+    AgentUtXmlConfig(name, id, node, test_case), vlan_(0xFFFF) {
 }
 
 AgentUtXmlLogicalInterface::~AgentUtXmlLogicalInterface() {
@@ -225,6 +225,7 @@ bool AgentUtXmlLogicalInterface::ReadXml() {
 
     GetStringAttribute(node(), "port", &port_name_);
     GetStringAttribute(node(), "vmi", &vmi_name_);
+    GetUintAttribute(node(), "vlan", &vlan_);
     return true;
 }
 
@@ -232,6 +233,8 @@ bool AgentUtXmlLogicalInterface::ToXml(xml_node *parent) {
     xml_node n = AddXmlNodeWithAttr(parent, NodeType().c_str());
     AddXmlNodeWithValue(&n, "name", name());
     AddXmlNodeWithValue(&n, "display-name", name());
+    if (vlan_ >= 0 && vlan_ <= 0x4096)
+        AddXmlNodeWithIntValue(&n, "logical-interface-vlan-tag", vlan_);
     AddIdPerms(&n);
 
     if (port_name_ != "") {
@@ -390,7 +393,7 @@ const string AgentUtXmlRemotePhysicalInterfaceValidate::ToString() {
 AgentUtXmlLogicalInterfaceValidate::AgentUtXmlLogicalInterfaceValidate
     (const string &name, const uuid &id, const xml_node &node) :
     AgentUtXmlValidationNode(name, node), id_(id), physical_port_(),
-    device_uuid_(), vmi_uuid_(), vlan_() {
+    device_uuid_(), vmi_uuid_(), vlan_(0xFFFF) {
 }
 
 AgentUtXmlLogicalInterfaceValidate::~AgentUtXmlLogicalInterfaceValidate() {
@@ -415,10 +418,10 @@ bool AgentUtXmlLogicalInterfaceValidate::ReadXml() {
 bool AgentUtXmlLogicalInterfaceValidate::Validate() {
     Agent *agent = Agent::GetInstance();
 
-    LogicalInterface *port;
+    VlanLogicalInterface *port;
 
     VlanLogicalInterfaceKey key(id_, name());
-    port = static_cast<LogicalInterface *>
+    port = static_cast<VlanLogicalInterface *>
         (agent->interface_table()->FindActiveEntry(&key));
 
     if (present() == false) {
@@ -444,6 +447,11 @@ bool AgentUtXmlLogicalInterfaceValidate::Validate() {
         if (vmi == NULL)
             return false;
         if (vmi->GetUuid() != vmi_uuid_)
+            return false;
+    }
+
+    if (vlan_ >= 0 && vlan_ < 4096) {
+        if (vlan_ != port->vlan())
             return false;
     }
 
@@ -542,18 +550,74 @@ bool AgentUtXmlMulticastTorValidate::Validate() {
     if (test_name_ == "force-change-vxlan-network-id-mode") {
         agent->set_vxlan_network_identifier_mode(Agent::CONFIGURED);
     }
-    if (test_name_ == "verify-mcast-tor-peer-deleted") {
-        VrfEntry *vrf =
-            Agent::GetInstance()->vrf_table()->FindVrfFromName("vrf1");
+    static BgpPeer *peer = NULL;
+    MulticastHandler *mc_handler = static_cast<MulticastHandler *>(agent->
+                                                                   oper_db()->multicast());
+    VrfEntry *vrf =
+        Agent::GetInstance()->vrf_table()->FindVrfFromName("vrf1");
+
+    if (test_name_ == "add_tor_olist") {
         BridgeAgentRouteTable *table = static_cast<BridgeAgentRouteTable *>
             (vrf->GetBridgeRouteTable());
+        if (peer == NULL) {
+            peer = CreateBgpPeer("127.0.0.1", "multicast-tor-test");
+        }
+        //Add multicast tor olist
+        TunnelOlist olist;
+        olist.push_back(OlistTunnelEntry(nil_uuid(), 10, 
+                                         IpAddress::from_string("8.8.8.8").to_v4(),
+                                         TunnelType::VxlanType()));
+        AgentPath *path = NULL;
         BridgeRouteEntry *entry = table->FindRoute(MacAddress::BroadcastMac());
-        if (entry == NULL)
-            return true;
-        AgentPath *path = entry->FindPath(agent->multicast_tor_peer());
-        if (path != NULL)
+        if (entry != NULL)
+            path = entry->FindPath(peer);
+        if (path == NULL) {
+            mc_handler->ModifyTorMembers(peer,
+                                         vrf->GetName(),
+                                         olist,
+                                         10,
+                                         1);
+        }
+        //Verify CNH
+        entry = table->FindRoute(MacAddress::BroadcastMac());
+        if (entry == NULL) {
+            cout << "heare 1" << endl;
             return false;
+        }
+        path = entry->FindPath(agent->multicast_peer());
+        if (path == NULL) {
+            cout << "heare 2" << endl;
+            return false;
+        }
+        path = entry->FindPath(peer);
+        if (path == NULL) {
+            cout << "heare 3" << endl;
+            return false;
+        }
     }
+
+    if (test_name_ == "del_tor_olist") {
+        BridgeAgentRouteTable *table = static_cast<BridgeAgentRouteTable *>
+            (vrf->GetBridgeRouteTable());
+        TunnelOlist olist;
+        //Delete route
+        mc_handler->ModifyTorMembers(peer,
+                                     vrf->GetName(),
+                                     olist,
+                                     10,
+                                     ControllerPeerPath::kInvalidPeerIdentifier);
+        BridgeRouteEntry *entry = table->FindRoute(MacAddress::BroadcastMac());
+        if (entry) {
+            const AgentPath *path = entry->FindPath(peer);
+            if (path != NULL) {
+                cout << "heare 4" << endl;
+                return false;
+            }
+        }
+        if (peer)
+            DeleteBgpPeer(peer);
+    }
+
     return true;
 }
 

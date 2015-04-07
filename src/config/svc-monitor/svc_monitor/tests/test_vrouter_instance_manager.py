@@ -54,10 +54,6 @@ class VRouterInstanceManagerTest(unittest.TestCase):
                     return vn.uuid
             raise NoIdError(fq_name)
 
-        def vm_create(vm_obj):
-            vm_obj.uuid = 'fake-vm-uuid'
-            return
-
         def vmi_create(vmi_obj):
             vmi_obj.uuid = 'fake-vmi-uuid'
             return
@@ -133,7 +129,7 @@ class VRouterInstanceManagerTest(unittest.TestCase):
         vm.proj_fq_name = ['fake-domain', 'fake-project']
         return vm
 
-    def test_create(self):
+    def test_vrouter_instance_create(self):
         self.create_test_project('fake-domain:fake-project')
         self.create_test_virtual_network('fake-domain:fake-project:mgmt-vn')
         self.create_test_virtual_network('fake-domain:fake-project:left-vn')
@@ -174,7 +170,7 @@ class VRouterInstanceManagerTest(unittest.TestCase):
         self.mocked_vnc.virtual_machine_create.assert_any_call(VMObjMatcher(1))
         self.mocked_vnc.virtual_router_update.assert_any_call(VRObjMatcher(['fake-vm-uuid']))
 
-    def test_delete(self):
+    def test_vrouter_instance_delete(self):
         def create_fake_virtual_machine(fq_name_str):
             vm_obj = {}
             vm_obj['fq_name'] = fq_name_str.split(':')

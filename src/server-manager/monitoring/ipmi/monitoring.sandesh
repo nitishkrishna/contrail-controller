@@ -24,26 +24,12 @@ struct Disk {
     1: string disk_name
     2: optional u64 read_bytes
     3: optional u64 write_bytes
-    4: optional u64 total_read_bytes
-    5: optional u64 total_write_bytes
 }
 
-struct network_info {
-    1: optional u64 tx_bytes
-    2: optional u64 tx_packets
-    3: optional u64 rx_bytes
-    4: optional u64 rx_packets
-    5: optional string interface_name
-    6: optional u64 total_tx_bytes
-    7: optional u64 total_tx_packets
-    8: optional u64 total_rx_bytes
-    9: optional u64 total_rx_packets
-}
-
-struct resource_info {
-    1: optional double cpu_usage_percentage
-    2: optional double mem_usage_mb
-    3: optional double mem_usage_percent
+struct Disk_totals {
+    1: string disk_name
+    2: optional u64 total_read_bytes
+    3: optional u64 total_write_bytes
 }
 
 struct network_info {
@@ -58,6 +44,14 @@ struct resource_info {
     1: optional double cpu_usage_percentage
     2: optional double mem_usage_mb
     3: optional double mem_usage_percent
+}
+
+struct network_info_totals {
+    1: optional u64 total_tx_bytes
+    2: optional u64 total_tx_packets
+    3: optional u64 total_rx_bytes
+    4: optional u64 total_rx_packets
+    5: optional string interface_name
 }
 
 struct ServerMonitoringInfo {

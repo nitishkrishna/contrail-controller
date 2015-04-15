@@ -627,8 +627,8 @@ const list<stat_table> _STAT_TABLES  = [
       'obj_table' : SERVER_TABLE,
       'attributes': [
           { 'name' : 'disk_usage_stats.disk_name', 'datatype': 'string', 'index' : true},
-          { 'name' : 'disk_usage_stats.read_MB', 'datatype': 'int', 'index' : false},
-          { 'name' : 'disk_usage_stats.write_MB', 'datatype': 'int', 'index' : false},
+          { 'name' : 'disk_usage_stats.read_bytes', 'datatype': 'int', 'index' : false},
+          { 'name' : 'disk_usage_stats.write_bytes', 'datatype': 'int', 'index' : false},
         ]
     },
     {
@@ -652,6 +652,7 @@ const list<stat_table> _STAT_TABLES  = [
       'attributes': [
           { 'name' : 'resource_info_stats.cpu_usage_percentage', 'datatype': 'double', 'index' : false},
           { 'name' : 'resource_info_stats.mem_usage_mb', 'datatype': 'double', 'index' : false},
+          { 'name' : 'resource_info_stats.mem_usage_percent', 'datatype': 'double', 'index' : false},
         ]
     },
     {

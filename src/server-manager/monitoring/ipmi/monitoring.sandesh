@@ -58,14 +58,12 @@ struct ServerMonitoringInfo {
     1: string name               (key="ObjectServerTable")
     2: optional bool             deleted
     3: optional list<IpmiSensor> sensor_stats (tags=".sensor,.sensor_type")
-    4: optional list<IpmiSensor> sensor_state
-    6: optional IpmiChassis_status_info chassis_state
-    7: optional list<Disk> disk_usage_stats (tags=".disk_name")
-    8: optional list<Disk> disk_usage_state
-    9: optional list<resource_info> resource_info_stats (tags="")
-    10: optional resource_info resource_info_state
-    11: optional list<network_info> network_info_stats (tags=".interface_name")
-    12: optional list<network_info> network_info_state
+    4: optional IpmiChassis_status_info chassis_state
+    5: optional list<Disk> disk_usage_stats (tags=".disk_name")
+    6: optional list<Disk_totals> disk_usage_totals
+    7: optional list<resource_info> resource_info_stats (tags="")
+    8: optional list<network_info> network_info_stats (tags=".interface_name")
+    9: optional list<network_info_totals> network_info_totals
 }
 
 uve sandesh ServerMonitoringInfoUve {

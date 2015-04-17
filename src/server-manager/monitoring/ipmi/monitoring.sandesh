@@ -46,14 +46,14 @@ struct resource_info {
     3: optional double mem_usage_percent
 }
 
-<<<<<<< Updated upstream
 struct network_info_totals {
     1: optional u64 total_tx_bytes
     2: optional u64 total_tx_packets
     3: optional u64 total_rx_bytes
     4: optional u64 total_rx_packets
     5: optional string interface_name
-=======
+}
+
 struct resource_info {
     1: optional double cpu_usage_percentage
     2: optional double mem_usage_mb

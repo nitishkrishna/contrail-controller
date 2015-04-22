@@ -40,12 +40,6 @@ struct network_info {
     5: optional string interface_name
 }
 
-struct resource_info {
-    1: optional double cpu_usage_percentage
-    2: optional double mem_usage_mb
-    3: optional double mem_usage_percent
-}
-
 struct network_info_totals {
     1: optional u64 total_tx_bytes
     2: optional u64 total_tx_packets
@@ -86,7 +80,7 @@ struct ServerMonitoringInfo {
     4: optional IpmiChassis_status_info chassis_state
     5: optional list<Disk> disk_usage_stats (tags=".disk_name")
     6: optional list<Disk_totals> disk_usage_totals
-    7: optional list<resource_info> resource_info_stats (tags="")
+    7: optional resource_info resource_info_stats (tags="")
     8: optional list<network_info> network_info_stats (tags=".interface_name")
     9: optional list<network_info_totals> network_info_totals
     10: optional list<file_system_view> file_system_view_stats (tags="name:.fs_name,.used_percentage")
